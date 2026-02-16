@@ -97,11 +97,11 @@ const ProductDetail = () => {
   ];
 
   return (
-    <Layout>
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <Layout isFixed={true}>
+      <div className="h-full overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-4 gap-6">
 
         {/* Left Column (75% width on large screens) */}
-        <div className="col-span-1 lg:col-span-3 space-y-6">
+        <div className="col-span-1 lg:col-span-3 space-y-6 lg:h-full lg:overflow-y-auto lg:pr-2">
 
             {/* Top Row: Product Summary */}
             <Card decoration="top" decorationColor={getStatusColor(product.status)}>
@@ -348,8 +348,8 @@ const ProductDetail = () => {
         </div>
 
         {/* Right Column (25% width on large screens) - Copilot */}
-        <div className="col-span-1 lg:col-span-1">
-            <Card className="h-full flex flex-col min-h-[600px]">
+        <div className="col-span-1 lg:col-span-1 lg:h-full flex flex-col">
+            <Card className="h-full flex flex-col lg:min-h-0 min-h-[500px]">
                 <div className="flex items-center mb-4">
                     <div className="p-2 bg-indigo-100 rounded-lg mr-3">
                          <BrainCircuit className="h-6 w-6 text-indigo-600" />
