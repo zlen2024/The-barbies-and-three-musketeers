@@ -161,8 +161,14 @@ def api_generate_pr():
         product = Product.query.first()
 
     if product:
-        # Auto-select a vendor (in real app, user selects)
-        pv = ProductVendor.query.filter_by(product_id=product.id).first()
+        # Select vendor
+        vendor_id = data.get('vendor_id')
+        if vendor_id:
+            pv = ProductVendor.query.filter_by(product_id=product.id, vendor_id=vendor_id).first()
+        else:
+            # Auto-select a vendor (in real app, user selects)
+            pv = ProductVendor.query.filter_by(product_id=product.id).first()
+
         if not pv:
             return jsonify({'success': False, 'message': 'No vendor found for this product'}), 400
 
@@ -383,6 +389,7 @@ def api_product_detail(sku):
 
     # Vendors
     vendor_info = [{
+        'id': pv.vendor_id,
         'name': pv.vendor.vendor_name,
         'cost': pv.cost_price,
         'lead_time': pv.lead_time_days
@@ -439,6 +446,122 @@ def api_product_detail(sku):
     }
 
     return jsonify(data)
+
+# API: Get Locations for Product (for inventory expanded row)
+@app.route('/api/inventory/<int:product_id>/locations', methods=['GET'])
+@login_required
+def api_product_locations(product_id):
+    product = Product.query.get(product_id)
+    if not product:
+        return jsonify({'error': 'Product not found'}), 404
+
+    location_data = []
+    for pl in product.product_locs:
+        location_data.append({
+            'location_name': pl.location.description,
+            'location_code': pl.location.loc_code,
+            'type': pl.location.type,
+            'quantity': pl.quantity_on_hand
+        })
+    return jsonify(location_data)
+
+# API: Get All Orders
+@app.route('/api/orders', methods=['GET'])
+@login_required
+def api_get_orders():
+    # Join ProductOrder -> ProductVendor -> Product & Vendor
+    orders = ProductOrder.query.order_by(ProductOrder.created_at.desc()).all()
+
+    order_list = []
+    for o in orders:
+        pv = o.product_vendor
+        prod = pv.product
+        vend = pv.vendor
+
+        order_list.append({
+            'id': o.id,
+            'po_reference': o.po_reference or f"PO-{o.id}",
+            'product_name': prod.product_name,
+            'vendor_name': vend.vendor_name,
+            'quantity': o.order_qty,
+            'status': o.status,
+            'confirmation_status': o.confirmation_status,
+            'created_at': o.created_at.strftime("%Y-%m-%d %H:%M") if o.created_at else "",
+            'eta': o.ets_date.strftime("%Y-%m-%d") if o.ets_date else "TBD"
+        })
+    return jsonify(order_list)
+
+# API: Get Order Detail
+@app.route('/api/orders/<int:order_id>', methods=['GET'])
+@login_required
+def api_order_detail(order_id):
+    order = ProductOrder.query.get(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+
+    pv = order.product_vendor
+    prod = pv.product
+    vend = pv.vendor
+
+    # Timeline Logic
+    # 1. Created (created_at)
+    # 2. Confirmed (if confirmation_status == 'Confirmed')
+    # 3. Shipped (if status == 'Shipped')
+    # 4. Received (if status == 'Received')
+
+    timeline = []
+    if order.created_at:
+        timeline.append({'stage': 'Created', 'date': order.created_at.strftime("%Y-%m-%d %H:%M"), 'completed': True})
+
+    is_confirmed = order.confirmation_status == 'Confirmed'
+    timeline.append({'stage': 'Confirmed', 'date': '', 'completed': is_confirmed})
+
+    is_shipped = order.status in ['Shipped', 'Received']
+    timeline.append({'stage': 'Shipped', 'date': '', 'completed': is_shipped})
+
+    is_received = order.status == 'Received'
+    timeline.append({'stage': 'Received', 'date': order.ets_date.strftime("%Y-%m-%d") if order.ets_date else '', 'completed': is_received})
+
+    data = {
+        'id': order.id,
+        'po_reference': order.po_reference or f"PO-{order.id}",
+        'product': {
+            'name': prod.product_name,
+            'sku': prod.model_code,
+            'id': prod.id
+        },
+        'vendor': {
+            'name': vend.vendor_name,
+            'contact': vend.contact_person,
+            'email': f"orders@{vend.vendor_name.lower().replace(' ', '')}.com" # Mock email
+        },
+        'quantity': order.order_qty,
+        'status': order.status,
+        'confirmation_status': order.confirmation_status,
+        'created_at': order.created_at.strftime("%Y-%m-%d %H:%M") if order.created_at else "",
+        'timeline': timeline,
+        'email_preview': f"Dear {vend.contact_person or 'Sales Team'},\n\nPlease find attached Purchase Order PO-{order.id} for {order.order_qty} units of {prod.product_name} ({prod.model_code}).\n\nKindly confirm receipt and estimated delivery date.\n\nBest regards,\nProcurement Manager"
+    }
+    return jsonify(data)
+
+# API: Confirm Order
+@app.route('/api/orders/<int:order_id>/confirm', methods=['POST'])
+@login_required
+def api_confirm_order(order_id):
+    order = ProductOrder.query.get(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+
+    if order.confirmation_status == 'Confirmed':
+         return jsonify({'success': False, 'message': 'Order already confirmed'}), 400
+
+    order.confirmation_status = 'Confirmed'
+    order.status = 'Ordered' # Set initial status to Ordered once confirmed
+    # Set ETA mock
+    order.ets_date = datetime.utcnow() + timedelta(days=order.product_vendor.lead_time_days or 14)
+
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Order confirmed successfully'})
 
 # Serve React App for all other routes
 @app.route('/', defaults={'path': ''})

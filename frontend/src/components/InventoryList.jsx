@@ -14,7 +14,7 @@ import {
   Badge,
   Button,
 } from "@tremor/react";
-import { Plus, X } from 'lucide-react';
+import { Plus, X, ChevronRight, ChevronDown } from 'lucide-react';
 import axios from 'axios';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 
@@ -22,6 +22,9 @@ const InventoryList = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [expandedProductIds, setExpandedProductIds] = useState(new Set());
+  const [locationsData, setLocationsData] = useState({}); // productId -> locations array
+
   const [newProduct, setNewProduct] = useState({
     model_code: '',
     product_name: '',
@@ -78,6 +81,27 @@ const InventoryList = () => {
     navigate(`/inventory/product/${encodeURIComponent(sku)}`);
   };
 
+  const toggleExpand = async (e, productId) => {
+    e.stopPropagation(); // Prevent row click navigation
+
+    const newExpanded = new Set(expandedProductIds);
+    if (newExpanded.has(productId)) {
+        newExpanded.delete(productId);
+    } else {
+        newExpanded.add(productId);
+        // Fetch locations if not already cached
+        if (!locationsData[productId]) {
+            try {
+                const res = await axios.get(`/api/inventory/${productId}/locations`);
+                setLocationsData(prev => ({ ...prev, [productId]: res.data }));
+            } catch (err) {
+                console.error("Failed to fetch locations", err);
+            }
+        }
+    }
+    setExpandedProductIds(newExpanded);
+  };
+
   const getStatusColor = (status) => {
       switch(status) {
           case 'In Stock': return 'emerald';
@@ -104,6 +128,7 @@ const InventoryList = () => {
             <Table className="mt-6">
             <TableHead>
                 <TableRow>
+                <TableHeaderCell className="w-10"></TableHeaderCell>
                 <TableHeaderCell>Model / SKU</TableHeaderCell>
                 <TableHeaderCell>Product Name</TableHeaderCell>
                 <TableHeaderCell>Total Stock (In Hand)</TableHeaderCell>
@@ -112,31 +137,73 @@ const InventoryList = () => {
                 </TableRow>
             </TableHead>
             <TableBody>
-                {products.map((product) => (
-                <TableRow
-                    key={product.id}
-                    className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => handleRowClick(product.sku_id)}
-                >
-                    <TableCell className="font-medium text-gray-900">
-                        {product.sku_id}
-                    </TableCell>
-                    <TableCell>
-                        {product.product_name}
-                    </TableCell>
-                    <TableCell>
-                        {product.total_stock}
-                    </TableCell>
-                    <TableCell>
-                        {product.ams_3m}
-                    </TableCell>
-                    <TableCell>
-                        <Badge color={getStatusColor(product.status)}>
-                            {product.status}
-                        </Badge>
-                    </TableCell>
-                </TableRow>
-                ))}
+                {products.map((product) => {
+                    const isExpanded = expandedProductIds.has(product.id);
+                    return (
+                        <Fragment key={product.id}>
+                            <TableRow
+                                className="cursor-pointer hover:bg-gray-50"
+                                onClick={() => handleRowClick(product.sku_id)}
+                            >
+                                <TableCell>
+                                    <button
+                                        onClick={(e) => toggleExpand(e, product.id)}
+                                        className="p-1 hover:bg-gray-200 rounded text-gray-500"
+                                    >
+                                        {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                                    </button>
+                                </TableCell>
+                                <TableCell className="font-medium text-gray-900">
+                                    {product.sku_id}
+                                </TableCell>
+                                <TableCell>
+                                    {product.product_name}
+                                </TableCell>
+                                <TableCell>
+                                    {product.total_stock}
+                                </TableCell>
+                                <TableCell>
+                                    {product.ams_3m}
+                                </TableCell>
+                                <TableCell>
+                                    <Badge color={getStatusColor(product.status)}>
+                                        {product.status}
+                                    </Badge>
+                                </TableCell>
+                            </TableRow>
+                            {isExpanded && (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="bg-gray-50 p-4 shadow-inner">
+                                        <div className="px-4 py-2">
+                                            <h4 className="text-sm font-semibold text-gray-700 mb-2">Location Breakdown</h4>
+                                            {locationsData[product.id] ? (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                                    {locationsData[product.id].map((loc, idx) => (
+                                                        <div key={idx} className="bg-white p-3 rounded border border-gray-200 flex justify-between items-center">
+                                                            <div>
+                                                                <div className="text-sm font-medium text-gray-900">{loc.location_name}</div>
+                                                                <div className="text-xs text-gray-500">{loc.type}</div>
+                                                            </div>
+                                                            <div className="text-lg font-bold text-blue-600">{loc.quantity}</div>
+                                                        </div>
+                                                    ))}
+                                                    {locationsData[product.id].length === 0 && (
+                                                        <div className="text-gray-500 text-sm italic">No stock in any location.</div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
+                                                    <span>Loading locations...</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </Fragment>
+                    );
+                })}
             </TableBody>
             </Table>
         )}
