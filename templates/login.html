@@ -75,14 +75,27 @@
 </label>
 </div>
 </div>
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <div class="px-8 pt-4">
+      {% for message in messages %}
+        <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
+          <span class="font-medium">{{ message }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
 <!-- Login Form -->
-<form class="px-8 pt-4 pb-8 space-y-5">
+<form class="px-8 pt-4 pb-8 space-y-5" method="POST" action="{{ url_for('login') }}">
 <!-- Email Field -->
 <div class="flex flex-col gap-2">
 <label class="text-background-dark dark:text-slate-300 text-sm font-semibold leading-normal">Email Address</label>
 <div class="relative">
 <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">mail</span>
-<input class="form-input flex w-full rounded-xl text-background-dark dark:text-white focus:ring-2 focus:ring-primary/20 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-primary h-14 pl-12 pr-4 placeholder:text-slate-400 text-base font-normal transition-colors" placeholder="name@company.com" type="email"/>
+<input name="email" class="form-input flex w-full rounded-xl text-background-dark dark:text-white focus:ring-2 focus:ring-primary/20 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-primary h-14 pl-12 pr-4 placeholder:text-slate-400 text-base font-normal transition-colors" placeholder="name@company.com" type="email" required/>
 </div>
 </div>
 <!-- Password Field -->
@@ -93,7 +106,7 @@
 </div>
 <div class="relative flex items-center">
 <span class="material-symbols-outlined absolute left-4 text-slate-400">lock</span>
-<input class="form-input flex w-full rounded-xl text-background-dark dark:text-white focus:ring-2 focus:ring-primary/20 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-primary h-14 pl-12 pr-12 placeholder:text-slate-400 text-base font-normal transition-colors" placeholder="••••••••" type="password"/>
+<input name="password" class="form-input flex w-full rounded-xl text-background-dark dark:text-white focus:ring-2 focus:ring-primary/20 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-primary h-14 pl-12 pr-12 placeholder:text-slate-400 text-base font-normal transition-colors" placeholder="••••••••" type="password" required/>
 <button class="absolute right-4 text-slate-400 hover:text-primary transition-colors" type="button">
 <span class="material-symbols-outlined">visibility</span>
 </button>
@@ -101,7 +114,7 @@
 </div>
 <!-- Remember Me -->
 <div class="flex items-center gap-2">
-<input class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary transition-all cursor-pointer" id="remember" type="checkbox"/>
+<input name="remember" class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary transition-all cursor-pointer" id="remember" type="checkbox"/>
 <label class="text-sm text-slate-500 dark:text-slate-400 cursor-pointer select-none" for="remember">Keep me signed in</label>
 </div>
 <!-- Submit Button -->

@@ -3,7 +3,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Lead Intake &amp; Quote Generator</title>
+<title>Purchase Request Generator</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
@@ -42,7 +42,7 @@
 <div class="bg-primary/10 p-2 rounded-lg">
 <span class="material-symbols-outlined text-primary text-2xl">request_quote</span>
 </div>
-<h1 class="text-xl font-bold tracking-tight text-slate-900">QuoteEngine <span class="text-primary text-xs font-normal align-top px-1.5 py-0.5 bg-primary/10 rounded ml-1">v2.4</span></h1>
+<h1 class="text-xl font-bold tracking-tight text-slate-900">PR Generator <span class="text-primary text-xs font-normal align-top px-1.5 py-0.5 bg-primary/10 rounded ml-1">v1.0</span></h1>
 </div>
 <nav class="hidden md:flex items-center gap-6">
 <a class="text-sm font-semibold text-primary border-b-2 border-primary pb-4 mt-4" href="#">Generator</a>
@@ -61,36 +61,33 @@
 </div>
 </header>
 <main class="max-w-7xl mx-auto px-6 py-8">
+<form method="POST" action="{{ url_for('generate_pr') }}">
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 <!-- Left Side: Lead Intake Form -->
 <div class="lg:col-span-7 space-y-6">
 <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 <div class="p-6 border-b border-slate-100">
-<h2 class="text-lg font-bold text-slate-900">Lead Information</h2>
-<p class="text-sm text-slate-500">Enter dealer and product details to trigger the pricing engine.</p>
+<h2 class="text-lg font-bold text-slate-900">Purchase Request Details</h2>
+<p class="text-sm text-slate-500">Enter product details to generate a Purchase Request.</p>
 </div>
 <div class="p-6 space-y-6">
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 <div class="space-y-2">
 <label class="text-sm font-semibold text-slate-700 flex items-center justify-between">
-                                    Dealer ID
-                                    <span class="text-[10px] uppercase tracking-wider text-green-600 font-bold flex items-center gap-1">
-<span class="material-symbols-outlined text-xs">check_circle</span> Verified
-                                    </span>
+                                    Product SKU
 </label>
 <div class="relative">
-<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">badge</span>
-<input class="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-900 font-medium" placeholder="Enter 6-digit ID" type="text" value="DLR-99201"/>
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">inventory_2</span>
+<input name="sku_id" class="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-900 font-medium" placeholder="Search by SKU or Name" type="text" value="{{ product.sku_id if product else '' }}" required/>
 </div>
-<p class="text-xs text-slate-500">Auto-assigned to: <span class="font-semibold text-slate-700">Metro Motors Northwest</span></p>
+<p class="text-xs text-slate-500">Current Stock: <span class="font-semibold text-green-600">{{ product.current_stock if product else '0' }} Units</span></p>
 </div>
 <div class="space-y-2">
-<label class="text-sm font-semibold text-slate-700">Product SKU</label>
+<label class="text-sm font-semibold text-slate-700">Quantity Required</label>
 <div class="relative">
-<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">inventory_2</span>
-<input class="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-900 font-medium" placeholder="Search by SKU or Name" type="text" value="SKU-8820-XL"/>
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">numbers</span>
+<input name="quantity" class="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-900 font-medium" placeholder="Enter Quantity" type="number" min="1" required/>
 </div>
-<p class="text-xs text-slate-500">In Stock: <span class="font-semibold text-green-600">42 Units</span></p>
 </div>
 </div>
 <div class="pt-4 border-t border-slate-50">
@@ -215,12 +212,9 @@
 </div>
 </div>
 <div class="flex flex-col gap-3 pt-2">
-<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20">
+<button type="submit" class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20">
 <span class="material-symbols-outlined">rocket_launch</span>
-                                Submit for Manager Approval
-                            </button>
-<button class="w-full bg-transparent hover:bg-white/5 text-slate-400 font-bold py-3 rounded-lg text-sm transition-all">
-                                Save as Draft Quote
+                                Submit Purchase Request
                             </button>
 </div>
 </div>
@@ -249,6 +243,7 @@
 </div>
 </aside>
 </div>
+</form>
 </main>
 <!-- Footer Stats (Floating style) -->
 <div class="fixed bottom-6 left-6 hidden xl:block">
