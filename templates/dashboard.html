@@ -129,6 +129,19 @@
 </aside>
 <!-- Page Content -->
 <main class="flex-1 flex flex-col min-w-0 bg-background-light dark:bg-background-dark overflow-y-auto">
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <div class="px-6 pt-4">
+      {% for message in messages %}
+        <div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50 dark:bg-gray-800 dark:text-green-400" role="alert">
+          <span class="font-medium">{{ message }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
 <!-- Breadcrumbs & Title -->
 <div class="p-6 pb-0">
 <div class="flex items-center gap-2 text-xs font-medium text-slate-500 mb-4">
@@ -188,168 +201,49 @@
 </tr>
 </thead>
 <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-<!-- Row 1: Critical -->
-<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors bg-red-50/10">
-<td class="px-6 py-4">
-<input class="form-checkbox rounded border-slate-300 text-primary" type="checkbox"/>
-</td>
-<td class="px-6 py-4">
-<div class="flex items-center gap-3">
-<div class="size-10 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-<img alt="" class="object-cover w-full h-full" data-alt="Close up of a metallic mechanical component" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCoRos6cy5SIgEO5DNQ-BYzSMGUEbKS6iQ9thtj7JpbxgFSsFfliCFMMbFmkzm4iaxKn2z0Z2IBJbwbnHI6SIZlywUqu235zhCj9pgusoOe04pd6Gvq0fYRu_aIiWP5zfvum4xIp_iv-6O75j4J8wNeYrgB5Y6Zf8D7uIafhtguyHfPO9Qrq2U-qORP7xRmsyjytx2zOuP2zHqrQRB4jHszx4BjaCpbcRkj1aoVge5rs41WmHLNVMh-Grmvljsw-CkPwPN1lkMMnA"/>
-</div>
-<div>
-<p class="text-sm font-semibold text-slate-900 dark:text-white">Steel Bearing RX-200</p>
-<p class="text-[11px] text-slate-500 font-medium tracking-tight">ID: SKU-29384-SB</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-4">
-<span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-[10px] font-bold uppercase tracking-wider">Hardware</span>
-</td>
-<td class="px-6 py-4 text-right">
-<p class="text-sm font-bold text-red-600 dark:text-red-400">14 Units</p>
-<p class="text-[10px] text-slate-400">Threshold: 50</p>
-</td>
-<td class="px-6 py-4">
-<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-bold">
-<span class="size-1.5 rounded-full bg-red-500"></span> Critical
-                                            </span>
-</td>
-<td class="px-6 py-4 text-center">
-<button class="px-3 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary hover:text-white transition-all">Select for Analysis</button>
-</td>
-</tr>
-<!-- Row 2: Low Stock -->
-<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-<td class="px-6 py-4">
-<input class="form-checkbox rounded border-slate-300 text-primary" type="checkbox"/>
-</td>
-<td class="px-6 py-4">
-<div class="flex items-center gap-3">
-<div class="size-10 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-<img alt="" class="object-cover w-full h-full" data-alt="Electric circuit board with microchips" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAtgyJlp6kh24PE0WFQ5hGOFmW2duXhmvI25TdOUNxHUNnRAD6tZIYQDBZdeY7FtOmPdh2lyYqUbVbLU9NFAvpFrnkXQprH8nfc0Kj4Zh53LM-tA1HYgs56FCARmqRrxnvOOn2O3BLtW19_g4hov6IXIPnhD7gXuJ8g9Qy0uepdSeFUWstT_a9sgMC4A_7Ml1jzQ-uL8_nr5mES621UHMWy17tMUpGy8dHpHceTs7Bizcoiym9naWVrnOTZHNEgFo1dRu24yzt9cg"/>
-</div>
-<div>
-<p class="text-sm font-semibold text-slate-900 dark:text-white">Mainboard v4.2 Pro</p>
-<p class="text-[11px] text-slate-500 font-medium tracking-tight">ID: SKU-44102-MB</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-4">
-<span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-[10px] font-bold uppercase tracking-wider">Electronics</span>
-</td>
-<td class="px-6 py-4 text-right">
-<p class="text-sm font-bold text-orange-600 dark:text-orange-400">82 Units</p>
-<p class="text-[10px] text-slate-400">Threshold: 100</p>
-</td>
-<td class="px-6 py-4">
-<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-bold">
-<span class="size-1.5 rounded-full bg-orange-500"></span> Low Stock
-                                            </span>
-</td>
-<td class="px-6 py-4 text-center">
-<button class="px-3 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary hover:text-white transition-all">Select for Analysis</button>
-</td>
-</tr>
-<!-- Row 3: In Stock (Selected State) -->
-<tr class="bg-primary/5 hover:bg-primary/10 transition-colors">
-<td class="px-6 py-4">
-<input checked="" class="form-checkbox rounded border-primary text-primary" type="checkbox"/>
-</td>
-<td class="px-6 py-4">
-<div class="flex items-center gap-3">
-<div class="size-10 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-<img alt="" class="object-cover w-full h-full" data-alt="Blue industrial plastic casing" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBs1ratq3DJvVBHmcrWI-p3Onx6f70FscgpuWxD-oPtw7VtdXROYx9atjPgKVjy1g1urP5d0k3TFgRKxwUnvvX9UtgoUoweG_WxLhhfinMuy9jrQJltGxrQ9R0QeUg_mil5aXMAEdIoKXfI3uwePv2IWV9Cah8c2cKnsqLxAIvJXY8oVUrbW95Y00uTwT9TRtorTCev441PKB_IXpPs8fy3qYMkRoNi6mUxYiWjBqp9MGH1C6cfIPdM85FWPjj_5CoZrMadK1_qCQ"/>
-</div>
-<div>
-<p class="text-sm font-semibold text-slate-900 dark:text-white">Polymer Case Shell</p>
-<p class="text-[11px] text-slate-500 font-medium tracking-tight">ID: SKU-88219-PC</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-4">
-<span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-[10px] font-bold uppercase tracking-wider">Packaging</span>
-</td>
-<td class="px-6 py-4 text-right">
-<p class="text-sm font-bold text-slate-900 dark:text-white">450 Units</p>
-<p class="text-[10px] text-slate-400">Threshold: 200</p>
-</td>
-<td class="px-6 py-4">
-<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
-<span class="size-1.5 rounded-full bg-emerald-500"></span> In Stock
-                                            </span>
-</td>
-<td class="px-6 py-4 text-center">
-<button class="px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1 mx-auto">
-<span class="material-symbols-outlined text-sm">check_circle</span> Selected
-                                            </button>
-</td>
-</tr>
-<!-- Row 4: In Stock -->
-<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-<td class="px-6 py-4">
-<input class="form-checkbox rounded border-slate-300 text-primary" type="checkbox"/>
-</td>
-<td class="px-6 py-4">
-<div class="flex items-center gap-3">
-<div class="size-10 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-<img alt="" class="object-cover w-full h-full" data-alt="Assorted copper industrial wiring" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBBiW0F_RWBBIWT3eOskWLdc9BIPmkhsGlOp8DBP0YnhQADCoWaq0WRoZy_zqWbn4tnQllDe1l8kvnTAyU2paEMcUyS8cSWdvb_GPGenCEifoCUKEIC4MHJp5lsawFgzeV8nQchhVcoV-hxVjmavPikh18e93KFbKa0DRZfxPots5hZbPEeMrHkIf4tDf0DWU6ex81xaPw_dRXWBUSHxSw1YDdXzTB8avmHvO212zjbK-NmocllGI0HD6ZCU7KFmyvYKIZXk7pfTg"/>
-</div>
-<div>
-<p class="text-sm font-semibold text-slate-900 dark:text-white">Copper Coil 0.5mm</p>
-<p class="text-[11px] text-slate-500 font-medium tracking-tight">ID: SKU-33210-CU</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-4">
-<span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-[10px] font-bold uppercase tracking-wider">Materials</span>
-</td>
-<td class="px-6 py-4 text-right">
-<p class="text-sm font-bold text-slate-900 dark:text-white">1,200 Units</p>
-<p class="text-[10px] text-slate-400">Threshold: 500</p>
-</td>
-<td class="px-6 py-4">
-<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
-<span class="size-1.5 rounded-full bg-emerald-500"></span> In Stock
-                                            </span>
-</td>
-<td class="px-6 py-4 text-center">
-<button class="px-3 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary hover:text-white transition-all">Select for Analysis</button>
-</td>
-</tr>
-<!-- Row 5: Low Stock -->
-<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-<td class="px-6 py-4">
-<input class="form-checkbox rounded border-slate-300 text-primary" type="checkbox"/>
-</td>
-<td class="px-6 py-4">
-<div class="flex items-center gap-3">
-<div class="size-10 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-<img alt="" class="object-cover w-full h-full" data-alt="Industrial cooling fan assembly" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB8Dv1dkR6rGePkjOu9Gm4Vj-uT0yuLJzz5ft0AN8jgpreWE-AanfBYewsU191jDHxb_rAVZpInGgbBvGX_jY7IMWsJplzVhIUR4A2aV5yMKhc4W6MQXG3diyuVAC4p0m93Ak5TLFbzafCDW9h8Zt-2GFE8qoF7Aa95hIg2VOiCJhvq8XsEDUFlOfCmU0J-IsDfPrWn8gKIbl5DO6pOBrQrwVvttnZgIkyWtSgu5-MYZjDP1i_Ty5whuqnKSQKX8M1nfliSVT9b2Q"/>
-</div>
-<div>
-<p class="text-sm font-semibold text-slate-900 dark:text-white">Cooling Fan Unit Z-9</p>
-<p class="text-[11px] text-slate-500 font-medium tracking-tight">ID: SKU-10922-CF</p>
-</div>
-</div>
-</td>
-<td class="px-6 py-4">
-<span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-[10px] font-bold uppercase tracking-wider">Hardware</span>
-</td>
-<td class="px-6 py-4 text-right">
-<p class="text-sm font-bold text-orange-600 dark:text-orange-400">22 Units</p>
-<p class="text-[10px] text-slate-400">Threshold: 30</p>
-</td>
-<td class="px-6 py-4">
-<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-bold">
-<span class="size-1.5 rounded-full bg-orange-500"></span> Low Stock
-                                            </span>
-</td>
-<td class="px-6 py-4 text-center">
-<button class="px-3 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary hover:text-white transition-all">Select for Analysis</button>
-</td>
-</tr>
+    {% for product in products %}
+    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors {{ 'bg-red-50/10' if product.stock_status == 'Critical' else '' }}">
+        <td class="px-6 py-4">
+            <input class="form-checkbox rounded border-slate-300 text-primary" type="checkbox"/>
+        </td>
+        <td class="px-6 py-4">
+            <div class="flex items-center gap-3">
+                <div class="size-10 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
+                    <span class="material-symbols-outlined text-slate-400">image</span>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ product.product_name }}</p>
+                    <p class="text-[11px] text-slate-500 font-medium tracking-tight">ID: {{ product.sku_id }}</p>
+                </div>
+            </div>
+        </td>
+        <td class="px-6 py-4">
+            <span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-[10px] font-bold uppercase tracking-wider">{{ product.category }}</span>
+        </td>
+        <td class="px-6 py-4 text-right">
+            <p class="text-sm font-bold {{ 'text-red-600 dark:text-red-400' if product.stock_status == 'Critical' else ('text-orange-600 dark:text-orange-400' if product.stock_status == 'Low Stock' else 'text-slate-900 dark:text-white') }}">{{ product.current_stock }} Units</p>
+            <p class="text-[10px] text-slate-400">Threshold: {{ product.minimum_stock_level }}</p>
+        </td>
+        <td class="px-6 py-4">
+            {% if product.stock_status == 'Critical' %}
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-bold">
+                <span class="size-1.5 rounded-full bg-red-500"></span> Critical
+            </span>
+            {% elif product.stock_status == 'Low Stock' %}
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-bold">
+                <span class="size-1.5 rounded-full bg-orange-500"></span> Low Stock
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
+                <span class="size-1.5 rounded-full bg-emerald-500"></span> In Stock
+            </span>
+            {% endif %}
+        </td>
+        <td class="px-6 py-4 text-center">
+            <a href="{{ url_for('forecast', sku_id=product.sku_id) }}" class="px-3 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary hover:text-white transition-all">Select for Analysis</a>
+        </td>
+    </tr>
+    {% endfor %}
 </tbody>
 </table>
 <!-- Pagination -->
