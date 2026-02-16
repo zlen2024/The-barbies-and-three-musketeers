@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lead Intake &amp; Quote Generator</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body class="bg-background-light text-slate-900 font-display min-h-screen">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-50 w-full bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-2 text-primary">
+<div class="bg-primary/10 p-2 rounded-lg">
+<span class="material-symbols-outlined text-primary text-2xl">request_quote</span>
+</div>
+<h1 class="text-xl font-bold tracking-tight text-slate-900">QuoteEngine <span class="text-primary text-xs font-normal align-top px-1.5 py-0.5 bg-primary/10 rounded ml-1">v2.4</span></h1>
+</div>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-sm font-semibold text-primary border-b-2 border-primary pb-4 mt-4" href="#">Generator</a>
+<a class="text-sm font-medium text-slate-500 hover:text-slate-900 pb-4 mt-4 transition-colors" href="#">History</a>
+<a class="text-sm font-medium text-slate-500 hover:text-slate-900 pb-4 mt-4 transition-colors" href="#">Leads</a>
+<a class="text-sm font-medium text-slate-500 hover:text-slate-900 pb-4 mt-4 transition-colors" href="#">Settings</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-slate-200 overflow-hidden border border-slate-300" data-alt="User profile avatar circle">
+<img alt="Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuATijg3FtgystyancQhpPUtuNaadCoX_3Ad5_ovq_v2kR08UyMlHdKE3JbpU-gB-JFC0OYceJJtSE2UxvBXXcfx20Kz5rqDJCyakMCzBGpal6p9cdLEeVQfPl7CHM0KNKhGOcqvkW36KUHCEKsZz7kQM7FDxjq5UO5KokFlyEHcLbkXUlKkSaK_T5mnH3KG5qmzA6o3nhyZw9gFQiF1Q4SEmStr_BqgA31liehZLToJnxCe7a911dRPIYHNUQihMiIJvsItxf5lOg"/>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-6 py-8">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Left Side: Lead Intake Form -->
+<div class="lg:col-span-7 space-y-6">
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+<div class="p-6 border-b border-slate-100">
+<h2 class="text-lg font-bold text-slate-900">Lead Information</h2>
+<p class="text-sm text-slate-500">Enter dealer and product details to trigger the pricing engine.</p>
+</div>
+<div class="p-6 space-y-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-2">
+<label class="text-sm font-semibold text-slate-700 flex items-center justify-between">
+                                    Dealer ID
+                                    <span class="text-[10px] uppercase tracking-wider text-green-600 font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">check_circle</span> Verified
+                                    </span>
+</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">badge</span>
+<input class="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-900 font-medium" placeholder="Enter 6-digit ID" type="text" value="DLR-99201"/>
+</div>
+<p class="text-xs text-slate-500">Auto-assigned to: <span class="font-semibold text-slate-700">Metro Motors Northwest</span></p>
+</div>
+<div class="space-y-2">
+<label class="text-sm font-semibold text-slate-700">Product SKU</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">inventory_2</span>
+<input class="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-slate-900 font-medium" placeholder="Search by SKU or Name" type="text" value="SKU-8820-XL"/>
+</div>
+<p class="text-xs text-slate-500">In Stock: <span class="font-semibold text-green-600">42 Units</span></p>
+</div>
+</div>
+<div class="pt-4 border-t border-slate-50">
+<div class="bg-primary/5 rounded-lg p-4 flex gap-4 border border-primary/10">
+<div class="bg-white h-16 w-16 rounded-md shadow-sm flex items-center justify-center text-primary" data-alt="Product placeholder image icon">
+<span class="material-symbols-outlined text-3xl">image</span>
+</div>
+<div>
+<h4 class="font-bold text-slate-900">Premium Performance Package V4</h4>
+<p class="text-xs text-slate-500 leading-relaxed max-w-md">Includes upgraded suspension, carbon-fiber intake, and custom ECU mapping for high-altitude performance.</p>
+<div class="mt-2 flex gap-3">
+<span class="px-2 py-0.5 bg-slate-100 text-[10px] font-bold text-slate-600 rounded">HARDWARE</span>
+<span class="px-2 py-0.5 bg-slate-100 text-[10px] font-bold text-slate-600 rounded">WARRANTY INCL.</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Approval Notification Panel (Conditional) -->
+<div class="bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-start gap-4 shadow-sm">
+<div class="bg-amber-100 p-2 rounded-lg text-amber-600">
+<span class="material-symbols-outlined">gavel</span>
+</div>
+<div>
+<h4 class="font-bold text-amber-900 flex items-center gap-2">
+                            Manager Approval Required
+                            <span class="bg-amber-200 text-amber-900 text-[10px] px-2 py-0.5 rounded-full font-black">ACTION NEEDED</span>
+</h4>
+<p class="text-sm text-amber-800/80 mt-1 leading-normal">
+                            A discount of <span class="font-bold">12.5%</span> has been applied. Since this exceeds the standard dealer threshold of 10%, this quote must be routed to Regional Manager <span class="font-bold underline decoration-amber-500/50">Sarah Jenkins</span> for electronic signature.
+                        </p>
+</div>
+</div>
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+<h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">analytics</span>
+                        Price Calculation Engine
+                    </h3>
+<div class="space-y-3">
+<div class="flex justify-between items-center text-sm">
+<span class="text-slate-500">MSRP Base Price</span>
+<span class="font-medium text-slate-900">$12,450.00</span>
+</div>
+<div class="flex justify-between items-center text-sm">
+<span class="text-slate-500">Dealer Tier Discount (Tier 2)</span>
+<span class="font-medium text-slate-900">-$1,245.00</span>
+</div>
+<div class="flex justify-between items-center text-sm">
+<span class="text-slate-500">Special Promo Code (WINTER24)</span>
+<span class="font-medium text-slate-900">-$311.25</span>
+</div>
+<div class="pt-3 border-t border-slate-100 flex justify-between items-center">
+<span class="font-bold text-slate-900">Subtotal</span>
+<span class="font-black text-lg text-primary">$10,893.75</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Side: Review & Accept Panel -->
+<aside class="lg:col-span-5 sticky top-24">
+<div class="bg-slate-900 rounded-xl shadow-xl overflow-hidden text-white">
+<div class="p-6 bg-slate-800/50 border-b border-white/10 flex justify-between items-center">
+<div>
+<p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Quote Summary</p>
+<h2 class="text-xl font-bold">Review &amp; Accept</h2>
+</div>
+<div class="text-right">
+<p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Status</p>
+<span class="bg-amber-500 text-slate-950 text-[10px] px-2 py-0.5 rounded font-black">PENDING APPROVAL</span>
+</div>
+</div>
+<div class="p-6 space-y-6">
+<!-- Summary Card -->
+<div class="space-y-4">
+<div class="flex items-center gap-3">
+<div class="size-10 rounded-lg bg-white/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">person</span>
+</div>
+<div>
+<p class="text-xs text-slate-400">Customer Contact</p>
+<p class="font-semibold text-sm">Robert T. Chen — Lead ID #88-X9</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="size-10 rounded-lg bg-white/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">location_on</span>
+</div>
+<div>
+<p class="text-xs text-slate-400">Fulfillment Location</p>
+<p class="font-semibold text-sm">Seattle Service Center, WA</p>
+</div>
+</div>
+</div>
+<div class="bg-white/5 rounded-lg p-4 space-y-4">
+<div class="flex justify-between text-sm">
+<span class="text-slate-400">Base Quote</span>
+<span>$10,893.75</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-slate-400">Shipping &amp; Handling</span>
+<span>$145.00</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-slate-400">Est. Sales Tax (8.8%)</span>
+<span>$958.65</span>
+</div>
+<div class="pt-4 border-t border-white/10 flex justify-between items-end">
+<div>
+<p class="text-xs text-primary font-bold uppercase tracking-wider">Total Amount Due</p>
+<p class="text-3xl font-black text-white">$11,997.40</p>
+</div>
+<span class="text-[10px] text-slate-500 mb-1 font-medium">USD Currency</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex items-start gap-3">
+<input class="mt-1 rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary/50" id="terms" type="checkbox"/>
+<label class="text-xs text-slate-400 leading-normal" for="terms">
+                                    I confirm that the above details are correct and acknowledge that this quote is valid for 14 business days. Manager approval will be requested automatically.
+                                </label>
+</div>
+</div>
+<div class="flex flex-col gap-3 pt-2">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">rocket_launch</span>
+                                Submit for Manager Approval
+                            </button>
+<button class="w-full bg-transparent hover:bg-white/5 text-slate-400 font-bold py-3 rounded-lg text-sm transition-all">
+                                Save as Draft Quote
+                            </button>
+</div>
+</div>
+<div class="p-4 bg-slate-950/50 flex items-center justify-center gap-6">
+<div class="flex items-center gap-1 text-[10px] text-slate-500 font-bold">
+<span class="material-symbols-outlined text-xs">lock</span>
+                            SECURE SSL
+                        </div>
+<div class="flex items-center gap-1 text-[10px] text-slate-500 font-bold">
+<span class="material-symbols-outlined text-xs">verified_user</span>
+                            COMPLIANT
+                        </div>
+</div>
+</div>
+<div class="mt-6 flex items-center gap-4 px-4">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border-2 border-background-light bg-slate-300 overflow-hidden" data-alt="Reviewer avatar 1">
+<img alt="Reviewer" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDglN3omFBampz9_30lZs1K7-cceEzyNojJRsbjVqVd95J55Mdgx84mcGUvj7JDwHKYpu5fs5ZcCnUmYnIvcsOJLLS73b98eTDk2lgyN7muIbnzJFPzbUSfhS2LlxMg-5ocEorW_Umah5lTMbpKT0wmB-4p0f38JXsEq84S7mInN_2x8Uu4ToYTfDcaPl9lbBmYl5dIWeIXtMztH91CQBRKHtbeOfataKqSTZec04tvHWBq_OZ0xzZ1ejsMcHBkatHQSvSJHHiXfg"/>
+</div>
+<div class="size-6 rounded-full border-2 border-background-light bg-slate-300 overflow-hidden" data-alt="Reviewer avatar 2">
+<img alt="Reviewer" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA1Vqoy7Sh3qp0MmKSXoCyc9I0shab9mFk7JpP_qtT3MZ_wKM2jXklpCW3KABFFzJo-ggOS2mMAp7FsH-Fh505GWHuwc7gdmQ4_Ynyxh7UphUiAzjuNzU4X7Ini8BPN0if5rXk2PpiygUSGxjOdGG5YvKnxhHs9nd-IbG64tx6hcm-3CYS5Qg75ALrt6ugYovWARTDXGcypizbobnDnNYBCbL6azyENNGF2tdHR1pnW4xvIHPAj87lvR-BTngTt7VZqfokyOxPlwg"/>
+</div>
+<div class="size-6 rounded-full border-2 border-background-light bg-slate-400 flex items-center justify-center text-[8px] font-bold text-white">+5</div>
+</div>
+<p class="text-[10px] font-semibold text-slate-500">Processed 124 quotes today</p>
+</div>
+</aside>
+</div>
+</main>
+<!-- Footer Stats (Floating style) -->
+<div class="fixed bottom-6 left-6 hidden xl:block">
+<div class="bg-white rounded-full border border-slate-200 shadow-lg px-4 py-2 flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-green-500 text-sm">circle</span>
+<span class="text-xs font-bold text-slate-700">Pricing Engine Online</span>
+</div>
+<div class="h-4 w-px bg-slate-200"></div>
+<div class="text-xs font-medium text-slate-500">Latency: <span class="text-slate-900 font-bold">14ms</span></div>
+</div>
+</div>
+</body></html>
