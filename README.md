@@ -1,44 +1,18 @@
 
-# InventoryAI Flask Application
+# InventoryAI Flask Application with React Frontend
 
-This is a prototype inventory management application built with Flask.
+This is a prototype inventory management application built with Flask (Backend) and React (Frontend).
 
 ## Prerequisites
 
 - Python 3.x
-- `pip` or `uv` (recommended)
+- Node.js (v18+) & npm
 
-## Setup with uv (Recommended)
+## Setup & Installation
 
-1.  **Install uv** (if not already installed):
-    ```bash
-    pip install uv
-    ```
-    Or check [uv documentation](https://docs.astral.sh/uv/getting-started/installation/) for other installation methods.
+### 1. Backend Setup
 
-2.  **Create a virtual environment:**
-    ```bash
-    uv venv
-    ```
-
-3.  **Activate the virtual environment:**
-    *   **macOS/Linux:**
-        ```bash
-        source .venv/bin/activate
-        ```
-    *   **Windows:**
-        ```powershell
-        .venv\Scripts\activate
-        ```
-
-4.  **Install dependencies:**
-    ```bash
-    uv pip install -r requirements.txt
-    ```
-
-## Setup with pip (Standard)
-
-1.  Create and activate a virtual environment (optional but recommended):
+1.  **Create and activate a virtual environment:**
     ```bash
     python -m venv venv
     # Linux/macOS
@@ -47,37 +21,60 @@ This is a prototype inventory management application built with Flask.
     venv\Scripts\activate
     ```
 
-2.  Install dependencies:
+2.  **Install Python dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
 
-## Database Setup
+3.  **Seed the Database:**
+    ```bash
+    python seed_data.py
+    ```
 
-Before running the application, you need to initialize the database and seed it with sample data:
+### 2. Frontend Setup
 
-```bash
-python seed_data.py
-```
-This will create `inventory.db` and populate it with Users, Products, Inventory, and Forecast data.
+1.  **Navigate to the frontend directory:**
+    ```bash
+    cd frontend
+    ```
+
+2.  **Install Node dependencies:**
+    ```bash
+    npm install
+    ```
+
+3.  **Build the React application:**
+    ```bash
+    npm run build
+    ```
+    This will generate the production build in `frontend/dist`.
 
 ## Running the Application
 
-1.  Run the application:
+1.  **Start the Flask Server:**
+    Ensure you are in the root directory and the virtual environment is activated.
     ```bash
     python app.py
     ```
 
-2.  Open your browser and navigate to:
+2.  **Access the Application:**
+    Open your browser and navigate to:
     [http://127.0.0.1:5000](http://127.0.0.1:5000)
 
 3.  **Login Credentials:**
-    *   **Admin/Procurement:** `admin@inventory.ai` / `admin123`
+    *   **Procurement:** `admin@inventory.ai` / `admin123`
     *   **Sales:** `sales@inventory.ai` / `sales123`
 
-## Routes
+## Features
 
--   `/` - Login Page
--   `/dashboard` - Main Dashboard
--   `/forecast/<sku_id>` - Forecasting Page
--   `/generate-pr` - Purchase Request Generator
+-   **Dashboard:** Visualizes Historical Sales vs. AI Predictions using Tremor charts.
+-   **Smart Why:** Natural language explanations for AI forecasts.
+-   **Margin Simulator:** Test price changes and see impact on profit.
+-   **PR Generator:** Automated Purchase Request generation.
+-   **Role-Based Access:** Different views/actions for Sales and Procurement (simulated).
+
+## API Endpoints
+
+-   `POST /api/login` - User authentication
+-   `GET /api/dashboard` - Dashboard data (KPIs, Charts)
+-   `POST /api/generate-pr` - Generate Purchase Request
