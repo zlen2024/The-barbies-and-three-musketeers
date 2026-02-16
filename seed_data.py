@@ -37,11 +37,11 @@ def seed_database():
 
         print("Seeding Vendors...")
         vendors = [
-            Vendor(vendor_name='GlobalPort Logistics', contact_person='John Doe', phone_number='+123456789'),
-            Vendor(vendor_name='Apex Kitchen Supplies', contact_person='Jane Smith', phone_number='+987654321'),
-            Vendor(vendor_name='Nordic Ware', contact_person='Bob Johnson', phone_number='+1122334455'),
-            Vendor(vendor_name='TechSource Inc.', contact_person='Alice Brown', phone_number='+5566778899'),
-            Vendor(vendor_name='Rubine Manufacturer', contact_person='Charlie Green', phone_number='+9988776655')
+            Vendor(vendor_name='GlobalPort Logistics', contact_person='John Doe', phone_number='+123456789', is_overseas=True),
+            Vendor(vendor_name='Apex Kitchen Supplies', contact_person='Jane Smith', phone_number='+987654321', is_overseas=False),
+            Vendor(vendor_name='Nordic Ware', contact_person='Bob Johnson', phone_number='+1122334455', is_overseas=True),
+            Vendor(vendor_name='TechSource Inc.', contact_person='Alice Brown', phone_number='+5566778899', is_overseas=False),
+            Vendor(vendor_name='Rubine Manufacturer', contact_person='Charlie Green', phone_number='+9988776655', is_overseas=False)
         ]
         db.session.add_all(vendors)
         db.session.commit()

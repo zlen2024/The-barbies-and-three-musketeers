@@ -75,6 +75,7 @@ class Vendor(db.Model):
     vendor_name = db.Column(db.String(200), nullable=False)
     contact_person = db.Column(db.String(100))
     phone_number = db.Column(db.String(50))
+    is_overseas = db.Column(db.Boolean, default=False)
 
     product_vendors = db.relationship('ProductVendor', backref='vendor', lazy=True)
 

@@ -1,5 +1,4 @@
-import React, { useState, useEffect, Fragment } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import Layout from './Layout';
 import {
   Card,
@@ -17,123 +16,103 @@ import {
 import { Plus, X } from 'lucide-react';
 import axios from 'axios';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
+import { Fragment } from 'react';
 
-const InventoryList = () => {
-  const [products, setProducts] = useState([]);
+const Suppliers = () => {
+  const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newProduct, setNewProduct] = useState({
-    model_code: '',
-    product_name: '',
-    category: '',
-    brand: '',
-    status: 'Active'
+  const [newVendor, setNewVendor] = useState({
+    vendor_name: '',
+    contact_person: '',
+    phone_number: '',
+    is_overseas: false
   });
-  const navigate = useNavigate();
 
-  const fetchInventory = async () => {
+  const fetchVendors = async () => {
     try {
-      const response = await axios.get('/api/inventory');
-      setProducts(response.data);
+      const response = await axios.get('/api/vendors');
+      setVendors(response.data);
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching inventory", error);
+      console.error("Error fetching vendors", error);
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchInventory();
+    fetchVendors();
   }, []);
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setNewProduct(prev => ({
+    const { name, value, type, checked } = e.target;
+    setNewVendor(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('/api/products', newProduct);
+      await axios.post('/api/vendors', newVendor);
       setIsModalOpen(false);
-      setNewProduct({
-        model_code: '',
-        product_name: '',
-        category: '',
-        brand: '',
-        status: 'Active'
+      setNewVendor({
+        vendor_name: '',
+        contact_person: '',
+        phone_number: '',
+        is_overseas: false
       });
-      fetchInventory();
+      fetchVendors(); // Refresh list
     } catch (error) {
-      console.error("Error adding product", error);
-      alert("Failed to add product (ensure Model Code is unique)");
+      console.error("Error adding vendor", error);
+      alert("Failed to add vendor");
     }
-  };
-
-  const handleRowClick = (sku) => {
-    // Encode the SKU to handle slashes correctly
-    navigate(`/inventory/product/${encodeURIComponent(sku)}`);
-  };
-
-  const getStatusColor = (status) => {
-      switch(status) {
-          case 'In Stock': return 'emerald';
-          case 'Low Stock': return 'yellow';
-          case 'Critical': return 'red';
-          default: return 'gray';
-      }
   };
 
   return (
     <Layout>
-      <Card>
-        <div className="flex justify-between items-center">
-            <div>
-                <Title>Inventory Overview</Title>
-                <Text>A list of all products and their current stock status.</Text>
-            </div>
-            <Button icon={Plus} onClick={() => setIsModalOpen(true)}>Add Product</Button>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <Title>Suppliers</Title>
+          <Text>Manage your vendors and suppliers.</Text>
         </div>
+        <Button icon={Plus} onClick={() => setIsModalOpen(true)}>
+          Add Vendor
+        </Button>
+      </div>
 
+      <Card>
         {loading ? (
-           <div className="mt-6 text-center">Loading Inventory...</div>
+           <div className="mt-6 text-center">Loading Vendors...</div>
         ) : (
             <Table className="mt-6">
             <TableHead>
                 <TableRow>
-                <TableHeaderCell>Model / SKU</TableHeaderCell>
-                <TableHeaderCell>Product Name</TableHeaderCell>
-                <TableHeaderCell>Total Stock (In Hand)</TableHeaderCell>
-                <TableHeaderCell>AMS (3-Month)</TableHeaderCell>
-                <TableHeaderCell>Status</TableHeaderCell>
+                <TableHeaderCell>Vendor Name</TableHeaderCell>
+                <TableHeaderCell>Contact Person</TableHeaderCell>
+                <TableHeaderCell>Phone Number</TableHeaderCell>
+                <TableHeaderCell>Type</TableHeaderCell>
                 </TableRow>
             </TableHead>
             <TableBody>
-                {products.map((product) => (
-                <TableRow
-                    key={product.id}
-                    className="cursor-pointer hover:bg-gray-50"
-                    onClick={() => handleRowClick(product.sku_id)}
-                >
+                {vendors.map((vendor) => (
+                <TableRow key={vendor.id}>
                     <TableCell className="font-medium text-gray-900">
-                        {product.sku_id}
+                        {vendor.vendor_name}
                     </TableCell>
                     <TableCell>
-                        {product.product_name}
+                        {vendor.contact_person}
                     </TableCell>
                     <TableCell>
-                        {product.total_stock}
+                        {vendor.phone_number}
                     </TableCell>
                     <TableCell>
-                        {product.ams_3m}
-                    </TableCell>
-                    <TableCell>
-                        <Badge color={getStatusColor(product.status)}>
-                            {product.status}
-                        </Badge>
+                        {vendor.is_overseas ? (
+                            <Badge color="blue">Overseas</Badge>
+                        ) : (
+                            <Badge color="gray">Domestic</Badge>
+                        )}
                     </TableCell>
                 </TableRow>
                 ))}
@@ -142,7 +121,7 @@ const InventoryList = () => {
         )}
       </Card>
 
-      {/* Add Product Modal */}
+      {/* Add Vendor Modal */}
       <Transition show={isModalOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50" onClose={() => setIsModalOpen(false)}>
           <TransitionChild
@@ -171,7 +150,7 @@ const InventoryList = () => {
                 <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
                   <div className="flex justify-between items-center mb-4">
                     <DialogTitle as="h3" className="text-lg font-medium leading-6 text-gray-900">
-                      Add New Product
+                      Add New Vendor
                     </DialogTitle>
                     <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-500">
                       <X className="h-5 w-5" />
@@ -180,58 +159,48 @@ const InventoryList = () => {
 
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Model Code (SKU)</label>
+                      <label className="block text-sm font-medium text-gray-700">Vendor Name</label>
                       <input
                         type="text"
-                        name="model_code"
+                        name="vendor_name"
                         required
-                        value={newProduct.model_code}
+                        value={newVendor.vendor_name}
                         onChange={handleInputChange}
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Product Name</label>
+                      <label className="block text-sm font-medium text-gray-700">Contact Person</label>
                       <input
                         type="text"
-                        name="product_name"
-                        required
-                        value={newProduct.product_name}
+                        name="contact_person"
+                        value={newVendor.contact_person}
                         onChange={handleInputChange}
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Category</label>
+                      <label className="block text-sm font-medium text-gray-700">Phone Number</label>
                       <input
                         type="text"
-                        name="category"
-                        value={newProduct.category}
+                        name="phone_number"
+                        value={newVendor.phone_number}
                         onChange={handleInputChange}
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Brand</label>
+                    <div className="flex items-center">
                       <input
-                        type="text"
-                        name="brand"
-                        value={newProduct.brand}
+                        type="checkbox"
+                        name="is_overseas"
+                        id="is_overseas"
+                        checked={newVendor.is_overseas}
                         onChange={handleInputChange}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Status</label>
-                      <select
-                        name="status"
-                        value={newProduct.status}
-                        onChange={handleInputChange}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
-                      >
-                        <option value="Active">Active</option>
-                        <option value="Discontinued">Discontinued</option>
-                      </select>
+                      <label htmlFor="is_overseas" className="ml-2 block text-sm text-gray-900">
+                        Overseas Vendor
+                      </label>
                     </div>
 
                     <div className="mt-6 flex justify-end space-x-3">
@@ -246,7 +215,7 @@ const InventoryList = () => {
                         type="submit"
                         className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                       >
-                        Add Product
+                        Add Vendor
                       </button>
                     </div>
                   </form>
@@ -260,4 +229,4 @@ const InventoryList = () => {
   );
 };
 
-export default InventoryList;
+export default Suppliers;

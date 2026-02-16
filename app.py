@@ -215,6 +215,74 @@ def api_inventory():
 
     return jsonify(inventory_list)
 
+# API: Add Product
+@app.route('/api/products', methods=['POST'])
+@login_required
+def api_add_product():
+    data = request.json
+    model_code = data.get('model_code')
+    product_name = data.get('product_name')
+    category = data.get('category')
+    brand = data.get('brand')
+    status = data.get('status', 'Active')
+
+    if not model_code or not product_name:
+        return jsonify({'success': False, 'message': 'Model Code and Product Name are required'}), 400
+
+    existing_product = Product.query.filter_by(model_code=model_code).first()
+    if existing_product:
+        return jsonify({'success': False, 'message': 'Product with this Model Code already exists'}), 400
+
+    new_product = Product(
+        model_code=model_code,
+        product_name=product_name,
+        category=category,
+        brand=brand,
+        status=status
+    )
+    db.session.add(new_product)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Product added successfully', 'id': new_product.id})
+
+# API: Get Vendors
+@app.route('/api/vendors', methods=['GET'])
+@login_required
+def api_get_vendors():
+    vendors = Vendor.query.all()
+    vendor_list = [{
+        'id': v.id,
+        'vendor_name': v.vendor_name,
+        'contact_person': v.contact_person,
+        'phone_number': v.phone_number,
+        'is_overseas': v.is_overseas
+    } for v in vendors]
+    return jsonify(vendor_list)
+
+# API: Add Vendor
+@app.route('/api/vendors', methods=['POST'])
+@login_required
+def api_add_vendor():
+    data = request.json
+    vendor_name = data.get('vendor_name')
+    contact_person = data.get('contact_person')
+    phone_number = data.get('phone_number')
+    is_overseas = data.get('is_overseas', False)
+
+    if not vendor_name:
+        return jsonify({'success': False, 'message': 'Vendor Name is required'}), 400
+
+    new_vendor = Vendor(
+        vendor_name=vendor_name,
+        contact_person=contact_person,
+        phone_number=phone_number,
+        is_overseas=is_overseas
+    )
+    db.session.add(new_vendor)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Vendor added successfully', 'id': new_vendor.id})
+
 # API: Product Detail
 @app.route('/api/inventory/products/<path:sku>', methods=['GET'])
 @login_required
