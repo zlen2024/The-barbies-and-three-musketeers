@@ -1,83 +1,102 @@
+# InventoryAI Flask Application with React Frontend
 
-# InventoryAI Flask Application
+This repository contains the InventoryAI platform, a Procurement & Pricing intelligence tool that combines a Flask backend with a modern React frontend (using Tremor & Tailwind CSS).
 
-This is a prototype inventory management application built with Flask.
+## 🚀 Quick Start (Production Mode)
 
-## Prerequisites
+This is the simplest way to run the full application as if it were deployed. The Flask server will serve the compiled React frontend.
 
-- Python 3.x
-- `pip` or `uv` (recommended)
+1.  **Clone the Repository** & **Navigate to the directory**.
 
-## Setup with uv (Recommended)
-
-1.  **Install uv** (if not already installed):
-    ```bash
-    pip install uv
-    ```
-    Or check [uv documentation](https://docs.astral.sh/uv/getting-started/installation/) for other installation methods.
-
-2.  **Create a virtual environment:**
-    ```bash
-    uv venv
-    ```
-
-3.  **Activate the virtual environment:**
-    *   **macOS/Linux:**
-        ```bash
-        source .venv/bin/activate
-        ```
-    *   **Windows:**
-        ```powershell
-        .venv\Scripts\activate
-        ```
-
-4.  **Install dependencies:**
-    ```bash
-    uv pip install -r requirements.txt
-    ```
-
-## Setup with pip (Standard)
-
-1.  Create and activate a virtual environment (optional but recommended):
+2.  **Backend Setup**:
     ```bash
     python -m venv venv
     # Linux/macOS
     source venv/bin/activate
     # Windows
     venv\Scripts\activate
-    ```
 
-2.  Install dependencies:
-    ```bash
     pip install -r requirements.txt
+    python seed_data.py  # Initialize database
     ```
 
-## Database Setup
+3.  **Frontend Build**:
+    ```bash
+    cd frontend
+    npm install
+    npm run build
+    cd ..
+    ```
 
-Before running the application, you need to initialize the database and seed it with sample data:
-
-```bash
-python seed_data.py
-```
-This will create `inventory.db` and populate it with Users, Products, Inventory, and Forecast data.
-
-## Running the Application
-
-1.  Run the application:
+4.  **Run the App**:
     ```bash
     python app.py
     ```
+    Visit: [http://127.0.0.1:5000](http://127.0.0.1:5000)
 
-2.  Open your browser and navigate to:
-    [http://127.0.0.1:5000](http://127.0.0.1:5000)
+---
 
-3.  **Login Credentials:**
-    *   **Admin/Procurement:** `admin@inventory.ai` / `admin123`
-    *   **Sales:** `sales@inventory.ai` / `sales123`
+## 🛠️ Development Setup (Hot-Reloading)
 
-## Routes
+For active development, run the frontend and backend separately. This enables hot-reloading for React changes.
 
--   `/` - Login Page
--   `/dashboard` - Main Dashboard
--   `/forecast/<sku_id>` - Forecasting Page
--   `/generate-pr` - Purchase Request Generator
+### 1. Start the Backend API
+
+Open a terminal and run the Flask server. It will listen on port `5000`.
+
+```bash
+# Terminal 1
+source venv/bin/activate
+export FLASK_ENV=development  # Optional, enables debug mode
+python app.py
+```
+
+### 2. Start the React Frontend
+
+Open a **new terminal window** and run the Vite development server.
+
+```bash
+# Terminal 2
+cd frontend
+npm install  # If not already installed
+npm run dev
+```
+
+The frontend will typically run on `http://localhost:5173`.
+*   **API Requests**: The frontend is configured (via `vite.config.js`) to proxy `/api` requests to `http://127.0.0.1:5000`, preventing CORS issues during development.
+
+---
+
+## 🔑 Login Credentials
+
+The seed data includes two default users for role-based access testing:
+
+| Role | Email | Password |
+| :--- | :--- | :--- |
+| **Procurement (Admin)** | `admin@inventory.ai` | `admin123` |
+| **Sales** | `sales@inventory.ai` | `sales123` |
+
+---
+
+## 📦 Project Structure
+
+```
+├── app.py              # Main Flask application entry point
+├── models.py           # SQLAlchemy Database Models
+├── seed_data.py        # Script to populate the database
+├── requirements.txt    # Python dependencies
+├── instance/           # SQLite database location
+└── frontend/           # React Application
+    ├── src/
+    │   ├── components/ # React components (Dashboard, Login)
+    │   ├── App.jsx     # Main routing logic
+    │   └── main.jsx    # Entry point
+    ├── vite.config.js  # Vite configuration (proxy setup)
+    └── tailwind.config.js # Styling configuration
+```
+
+##  troubleshooting
+
+*   **Port 5000 in use:** If Flask fails to start, ensure no other service is using port 5000. You can kill the process or change the port in `app.py`.
+*   **CORS Errors:** If you see CORS errors in the browser console during development, verify that the Vite proxy is working and that you are accessing the app via the Vite server URL (e.g., `localhost:5173`), not by opening HTML files directly.
+*   **Database Errors:** If you encounter database schema errors, delete the `instance/inventory.db` file and re-run `python seed_data.py`.
