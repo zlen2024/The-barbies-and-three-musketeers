@@ -1,5 +1,5 @@
 from app import app, db
-from models import User, Product, Inventory, HistoricalSales, Forecast, PurchaseRequest, Vendor
+from models import User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 import random
@@ -7,151 +7,206 @@ import random
 def seed_database():
     with app.app_context():
         # Clean slate
+        print("Dropping all tables...")
         db.drop_all()
+        print("Creating all tables...")
         db.create_all()
 
         print("Seeding Users...")
         # Users
-        admin_user = User(
-            username='admin@inventory.ai',
-            password_hash=generate_password_hash('admin123'),
-            role='Procurement'
-        )
-        sales_user = User(
-            username='sales@inventory.ai',
-            password_hash=generate_password_hash('sales123'),
-            role='Sales'
-        )
-        db.session.add(admin_user)
-        db.session.add(sales_user)
-        db.session.commit()  # Commit users to get IDs
+        users = [
+            User(username='admin', password_hash=generate_password_hash('password'), role='Admin'),
+            User(username='warehouse', password_hash=generate_password_hash('password'), role='Warehouse'),
+            User(username='sales', password_hash=generate_password_hash('password'), role='Sales'),
+            User(username='manager', password_hash=generate_password_hash('password'), role='Manager')
+        ]
+        db.session.add_all(users)
+        db.session.commit()
+
+        print("Seeding Locations...")
+        locations = [
+            Location(loc_code='WH-MAIN', description='Main Warehouse', type='Physical Warehouse'),
+            Location(loc_code='WH-REWORK', description='Rework Area', type='Physical Warehouse'),
+            Location(loc_code='CH-LAZADA', description='Lazada Online Store', type='Online Channel'),
+            Location(loc_code='CH-SHOPEE', description='Shopee Online Store', type='Online Channel'),
+            Location(loc_code='CH-TIKTOK', description='TikTok Shop', type='Online Channel'),
+            Location(loc_code='CH-ESTORE', description='Direct E-Store', type='Online Channel')
+        ]
+        db.session.add_all(locations)
+        db.session.commit()
 
         print("Seeding Vendors...")
-        # Vendors
         vendors = [
-            Vendor(vendor_name='GlobalPort Logistics', contact_email='orders@globalport.com'),
-            Vendor(vendor_name='Apex Kitchen Supplies', contact_email='sales@apexkitchen.com'),
-            Vendor(vendor_name='Nordic Ware', contact_email='b2b@nordicware.com'),
-            Vendor(vendor_name='TechSource Inc.', contact_email='orders@techsource.com'),
-            Vendor(vendor_name='OfficeDepot B2B', contact_email='support@officedepot.com')
+            Vendor(vendor_name='GlobalPort Logistics', contact_person='John Doe', phone_number='+123456789'),
+            Vendor(vendor_name='Apex Kitchen Supplies', contact_person='Jane Smith', phone_number='+987654321'),
+            Vendor(vendor_name='Nordic Ware', contact_person='Bob Johnson', phone_number='+1122334455'),
+            Vendor(vendor_name='TechSource Inc.', contact_person='Alice Brown', phone_number='+5566778899'),
+            Vendor(vendor_name='Rubine Manufacturer', contact_person='Charlie Green', phone_number='+9988776655')
         ]
         db.session.add_all(vendors)
         db.session.commit()
 
         print("Seeding Products...")
-        # Products
         products = [
-            Product(sku_id='TACT1-M323/XB-P', product_name='Smart Induction Hood X1', category='Kitchen Appliances / Ducting', unit_price=450.00, lead_time=30, minimum_stock_level=100),
-            Product(sku_id='ERGO-PRO-V2', product_name='ErgoChair Pro V2', category='Office Furniture', unit_price=299.00, lead_time=14, minimum_stock_level=50),
-            Product(sku_id='AUDIO-NC-100', product_name='Wireless Noise Cancelling Headphones', category='Electronics', unit_price=120.00, lead_time=7, minimum_stock_level=200),
-            Product(sku_id='MONITOR-4K-27', product_name='UltraClear 4K Monitor 27"', category='Electronics', unit_price=350.00, lead_time=21, minimum_stock_level=80),
-            Product(sku_id='DESK-SITSTAND', product_name='Smart Sit-Stand Desk', category='Office Furniture', unit_price=550.00, lead_time=25, minimum_stock_level=40),
-            Product(sku_id='BLEND-PRO-X', product_name='Pro Series Blender', category='Kitchen Appliances', unit_price=180.00, lead_time=10, minimum_stock_level=60),
-            Product(sku_id='COFFEE-AUTO', product_name='Automatic Espresso Machine', category='Kitchen Appliances', unit_price=800.00, lead_time=45, minimum_stock_level=20),
-            Product(sku_id='LAPTOP-STAND', product_name='Aluminum Laptop Stand', category='Office Accessories', unit_price=45.00, lead_time=5, minimum_stock_level=150),
-            Product(sku_id='MOUSE-ERGONOMIC', product_name='Ergonomic Vertical Mouse', category='Electronics', unit_price=35.00, lead_time=7, minimum_stock_level=120),
-            Product(sku_id='KEYBOARD-MECH', product_name='Mechanical Keyboard RGB', category='Electronics', unit_price=110.00, lead_time=14, minimum_stock_level=90),
+            Product(model_code='HT-PLATZ-450-H', product_name='Granite Sink Platz 450', category='Granite Sink', brand='Rubine', status='Active'),
+            Product(model_code='SIROCCO-XR-BL', product_name='Sirocco XR Hood', category='Hood Cooker', brand='Rubine', status='Active'),
+            Product(model_code='RWH-2388-B', product_name='Instant Water Heater', category='Water Heater', brand='Rubine', status='Active'),
+            Product(model_code='FX-1200-SS', product_name='Stainless Steel Sink FX', category='Stainless Sink', brand='Haustern', status='Active'),
+            Product(model_code='MT-5050-G', product_name='Mixer Tap Gold', category='Taps', brand='Haustern', status='Active'),
+            Product(model_code='OV-60-EL', product_name='Electric Oven 60L', category='Oven', brand='Elba', status='Discontinued'),
+            Product(model_code='HB-2-GAS', product_name='2-Burner Gas Hob', category='Hob', brand='Rubine', status='Active'),
+            Product(model_code='DISH-X1', product_name='Dishwasher X1 Pro', category='Dishwasher', brand='Bosch', status='Active'),
+            Product(model_code='ACC-RACK-S', product_name='Spice Rack Small', category='Accessories', brand='OEM', status='Active'),
+            Product(model_code='ACC-DRAIN', product_name='Drainer Basket', category='Accessories', brand='OEM', status='Active')
         ]
-
-        # Assign vendors to products
-        products[0].vendors.extend([vendors[0], vendors[1]])
-        products[1].vendors.append(vendors[4])
-        products[2].vendors.append(vendors[3])
-        products[3].vendors.append(vendors[3])
-        products[4].vendors.append(vendors[4])
-        products[5].vendors.append(vendors[1])
-        products[6].vendors.extend([vendors[1], vendors[2]])
-        products[7].vendors.append(vendors[4])
-        products[8].vendors.append(vendors[3])
-        products[9].vendors.append(vendors[3])
-
         db.session.add_all(products)
         db.session.commit()
 
-        print("Seeding Inventory...")
-        # Inventory
-        inventories = [
-            Inventory(sku_id_fk=products[0].id, total_stock_on_hand=412, incoming_stock=500, stock_aging_days=15),
-            Inventory(sku_id_fk=products[1].id, total_stock_on_hand=20, incoming_stock=0, stock_aging_days=45),
-            Inventory(sku_id_fk=products[2].id, total_stock_on_hand=300, incoming_stock=100, stock_aging_days=5),
-            Inventory(sku_id_fk=products[3].id, total_stock_on_hand=90, incoming_stock=50, stock_aging_days=10),
-            Inventory(sku_id_fk=products[4].id, total_stock_on_hand=35, incoming_stock=20, stock_aging_days=25),
-            Inventory(sku_id_fk=products[5].id, total_stock_on_hand=70, incoming_stock=30, stock_aging_days=12),
-            Inventory(sku_id_fk=products[6].id, total_stock_on_hand=15, incoming_stock=10, stock_aging_days=60),
-            Inventory(sku_id_fk=products[7].id, total_stock_on_hand=200, incoming_stock=100, stock_aging_days=8),
-            Inventory(sku_id_fk=products[8].id, total_stock_on_hand=150, incoming_stock=50, stock_aging_days=20),
-            Inventory(sku_id_fk=products[9].id, total_stock_on_hand=100, incoming_stock=40, stock_aging_days=18),
-        ]
-        db.session.add_all(inventories)
+        print("Seeding Product Vendors...")
+        # Link products to vendors
+        product_vendors = []
+        for prod in products:
+            # Assign random vendors (1 or 2 per product)
+            assigned_vendors = random.sample(vendors, k=random.randint(1, 2))
+            for v in assigned_vendors:
+                cost = round(random.uniform(50, 500), 2)
+                lead_time = random.choice([7, 14, 30, 45, 60])
+                product_vendors.append(ProductVendor(product_id=prod.id, vendor_id=v.id, cost_price=cost, lead_time_days=lead_time))
 
-        print("Seeding Sales History...")
-        sales_channels = ['Lazada', 'Shopee', 'E-store', 'TikTok', 'Projects', 'Warehouse']
-        today = datetime.utcnow()
-
-        # Generate sales for the last 6 months for each product
-        for product in products:
-            # Base sales volume varies by product
-            base_volume = random.randint(20, 100)
-
-            # Create sales for each month
-            for i in range(6):
-                month_date = today - timedelta(days=30 * i)
-                # Vary sales by +/- 20%
-                monthly_sales = int(base_volume * (1 + random.uniform(-0.2, 0.2)))
-
-                # Split monthly sales across channels
-                remaining_sales = monthly_sales
-                for channel in sales_channels[:-1]: # All except last one
-                    if remaining_sales <= 0: break
-                    channel_sales = random.randint(0, remaining_sales)
-                    remaining_sales -= channel_sales
-                    if channel_sales > 0:
-                        sale = HistoricalSales(
-                            sku_id_fk=product.id,
-                            quantity_sold=channel_sales,
-                            sales_channel=channel,
-                            transaction_date=month_date
-                        )
-                        db.session.add(sale)
-
-                # Add remaining to last channel
-                if remaining_sales > 0:
-                    sale = HistoricalSales(
-                        sku_id_fk=product.id,
-                        quantity_sold=remaining_sales,
-                        sales_channel=sales_channels[-1],
-                        transaction_date=month_date
-                    )
-                    db.session.add(sale)
-
-        print("Seeding Forecasts...")
-        # Forecasts
-        forecasts = [
-            Forecast(sku_id_fk=products[0].id, projected_demand=120, confidence_score=0.89, smart_why_rationale="Based on the 12% sales acceleration this month and the upcoming 12-day lead time increase from GlobalPort, we are projecting a stockout in 14 days."),
-            Forecast(sku_id_fk=products[1].id, projected_demand=60, confidence_score=0.92, smart_why_rationale="Seasonal demand spike expected due to Back-to-School sales. Current stock is critically low."),
-            Forecast(sku_id_fk=products[2].id, projected_demand=150, confidence_score=0.85, smart_why_rationale="Stable demand with minor fluctuations. Recommended to maintain current stock levels."),
-            Forecast(sku_id_fk=products[3].id, projected_demand=80, confidence_score=0.88, smart_why_rationale="Increased demand from corporate clients expected next month."),
-            Forecast(sku_id_fk=products[4].id, projected_demand=40, confidence_score=0.75, smart_why_rationale="New product launch in competitor market may affect sales."),
-            Forecast(sku_id_fk=products[5].id, projected_demand=90, confidence_score=0.90, smart_why_rationale="High demand season approaching for kitchen appliances."),
-            Forecast(sku_id_fk=products[6].id, projected_demand=25, confidence_score=0.95, smart_why_rationale="Premium product with consistent low volume sales."),
-            Forecast(sku_id_fk=products[7].id, projected_demand=180, confidence_score=0.80, smart_why_rationale="High volume, low margin product. Monitor inventory turnover closely."),
-            Forecast(sku_id_fk=products[8].id, projected_demand=130, confidence_score=0.82, smart_why_rationale="Steady sales across all online channels."),
-            Forecast(sku_id_fk=products[9].id, projected_demand=100, confidence_score=0.87, smart_why_rationale="Gaming season boosting mechanical keyboard sales.")
-        ]
-        db.session.add_all(forecasts)
-
-        print("Seeding Purchase Requests...")
-        # Purchase Requests
-        prs = [
-            PurchaseRequest(sku_id_fk=products[0].id, requested_quantity=100, status='Pending', created_by=admin_user.id, timestamp=today - timedelta(days=2)),
-            PurchaseRequest(sku_id_fk=products[0].id, requested_quantity=200, status='Approved', created_by=admin_user.id, timestamp=today - timedelta(days=10)),
-            PurchaseRequest(sku_id_fk=products[1].id, requested_quantity=50, status='Pending', created_by=sales_user.id, timestamp=today - timedelta(days=1)),
-            PurchaseRequest(sku_id_fk=products[2].id, requested_quantity=150, status='Rejected', created_by=admin_user.id, timestamp=today - timedelta(days=5)),
-            PurchaseRequest(sku_id_fk=products[3].id, requested_quantity=80, status='Approved', created_by=sales_user.id, timestamp=today - timedelta(days=15)),
-        ]
-        db.session.add_all(prs)
-
+        db.session.add_all(product_vendors)
         db.session.commit()
+
+        print("Seeding Pricing & Campaigns...")
+        pricings = []
+        campaigns = []
+        for prod in products:
+            base_price = round(random.uniform(100, 1000), 2)
+            pricing = Pricing(
+                product_id=prod.id,
+                lsp_price=base_price,
+                wm_price=round(base_price * 1.1, 2),
+                em_price=round(base_price * 1.2, 2),
+                effective_date=datetime.utcnow() - timedelta(days=365)
+            )
+            pricings.append(pricing)
+
+            # Add a campaign for some products
+            if random.choice([True, False]):
+                campaigns.append(Campaign(
+                    pricing_id=pricing.id, # We need ID, so we might need to flush or add separately
+                    campaign_name=f"Promo for {prod.model_code}",
+                    gift_item="Free Cleaning Kit",
+                    start_date=datetime.utcnow() - timedelta(days=30),
+                    end_date=datetime.utcnow() + timedelta(days=30)
+                ))
+
+        db.session.add_all(pricings)
+        db.session.commit()
+
+        # Link campaigns to pricing IDs
+        for camp, price in zip(campaigns, [p for p in pricings if p in [c.pricing for c in campaigns] or True]): # Logic tricky here due to zip list length match
+             # Simplification: Just loop pricings and add campaigns
+             pass
+
+        # Better approach for campaigns:
+        for p in pricings:
+            if random.random() > 0.7:
+                 db.session.add(Campaign(
+                    pricing_id=p.id,
+                    campaign_name=f"Promo Campaign 2024",
+                    gift_item="Mystery Gift",
+                    start_date=datetime.utcnow(),
+                    end_date=datetime.utcnow() + timedelta(days=60)
+                ))
+        db.session.commit()
+
+        print("Seeding Product Locations (Inventory)...")
+        product_locs = []
+        for prod in products:
+            # Stock in Main Warehouse
+            qty = random.randint(0, 500)
+            pl_main = ProductLoc(product_id=prod.id, location_id=locations[0].id, quantity_on_hand=qty, updated_by=users[1].id)
+            product_locs.append(pl_main)
+
+            # Stock in Rework
+            if random.random() > 0.8:
+                product_locs.append(ProductLoc(product_id=prod.id, location_id=locations[1].id, quantity_on_hand=random.randint(0, 20), updated_by=users[1].id))
+
+            # Stock in Channels (usually logical stock, but schema treats as Location)
+            # Maybe 0 quantity here if it's just a channel, or allocated stock.
+            # Let's put some "stock" in channels to simulate channel-specific allocation
+            for loc in locations[2:]:
+                if random.random() > 0.5:
+                     product_locs.append(ProductLoc(product_id=prod.id, location_id=loc.id, quantity_on_hand=random.randint(0, 50), updated_by=users[2].id))
+
+        db.session.add_all(product_locs)
+        db.session.commit()
+
+        print("Seeding Sales...")
+        # Generate sales linked to ProductLocs
+        sales = []
+        today = datetime.utcnow()
+        for pl in product_locs:
+            # Generate sales for the past 6 months
+            if pl.location.type == 'Online Channel':
+                # Online channels sell more
+                for i in range(20):
+                     qty = random.randint(1, 5)
+                     date = today - timedelta(days=random.randint(1, 180))
+                     sales.append(Sale(pl_id=pl.id, sale_date=date, quantity_sold=qty, sold_by=users[2].id, customer_name=f"Customer {random.randint(1000,9999)}"))
+            else:
+                # Warehouse sales (e.g. direct orders)
+                 for i in range(5):
+                     qty = random.randint(10, 50)
+                     date = today - timedelta(days=random.randint(1, 180))
+                     sales.append(Sale(pl_id=pl.id, sale_date=date, quantity_sold=qty, sold_by=users[1].id, customer_name=f"Distributor {random.randint(100,999)}"))
+
+        db.session.add_all(sales)
+        db.session.commit()
+
+        print("Seeding Orders (POs & PRs)...")
+        # Find ProductVendors to order from
+        pvs = ProductVendor.query.all()
+        orders = []
+        for i in range(10):
+            pv = random.choice(pvs)
+            # Confirmed PO
+            orders.append(ProductOrder(
+                pv_id=pv.id,
+                po_reference=f"PO-2024-{random.randint(1000,9999)}",
+                order_qty=random.randint(50, 200),
+                ets_date=today + timedelta(days=pv.lead_time_days),
+                status='Ordered',
+                confirmation_status='Confirmed',
+                created_by=users[0].id
+            ))
+
+            # Unconfirmed PR
+            orders.append(ProductOrder(
+                pv_id=pv.id,
+                po_reference=None,
+                order_qty=random.randint(20, 100),
+                ets_date=None,
+                status='Pending', # Internal status
+                confirmation_status='Pending', # PR status
+                created_by=users[2].id
+            ))
+
+        db.session.add_all(orders)
+        db.session.commit()
+
+        print("Seeding Forecasts (Legacy/AI)...")
+        forecasts = []
+        for prod in products:
+             forecasts.append(Forecast(
+                 product_id=prod.id,
+                 projected_demand=random.randint(50, 300),
+                 confidence_score=random.uniform(0.7, 0.99),
+                 smart_why_rationale=f"Simulated AI rationale for {prod.model_code} based on recent sales velocity."
+             ))
+        db.session.add_all(forecasts)
+        db.session.commit()
+
         print("Database seeded successfully!")
 
 if __name__ == '__main__':

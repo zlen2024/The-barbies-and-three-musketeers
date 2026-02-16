@@ -72,7 +72,16 @@ const ProductDetail = () => {
       );
   }
 
-  const { product, stock_health, velocity, incoming, analytics, orders } = productData;
+  const { product, stock_health, velocity, incoming, analytics, orders, locations, vendors, pricing } = productData;
+
+  const handleCreatePO = async (sku) => {
+      try {
+          await axios.post('/api/generate-pr', { sku_id: sku, quantity: 100 });
+          alert("PR Created Successfully!");
+      } catch (e) {
+          alert("Error creating PR: " + (e.response?.data?.message || e.message));
+      }
+  };
 
   const getStatusColor = (status) => {
     switch(status) {
@@ -107,7 +116,7 @@ const ProductDetail = () => {
                         </div>
                     </div>
                     <div className="mt-4 sm:mt-0">
-                        <Button icon={ShoppingCart} size="lg" color="blue">
+                        <Button icon={ShoppingCart} size="lg" color="blue" onClick={() => handleCreatePO(product.sku)}>
                             Create PO
                         </Button>
                     </div>
@@ -176,6 +185,80 @@ const ProductDetail = () => {
                         {incoming.stockout_risk}
                     </Callout>
                 </Card>
+            </div>
+
+            {/* New Section: Product Info & Logistics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 {/* Pricing & Vendors */}
+                 <Card>
+                    <Title>Pricing & Vendors</Title>
+                    <div className="mt-4">
+                        <Text className="font-bold">Regional Pricing</Text>
+                        <div className="grid grid-cols-3 gap-2 mt-2">
+                             <div className="bg-gray-50 p-2 rounded text-center">
+                                 <Text className="text-xs">LSP</Text>
+                                 <Metric className="text-lg">${pricing?.lsp}</Metric>
+                             </div>
+                             <div className="bg-gray-50 p-2 rounded text-center">
+                                 <Text className="text-xs">West Msia</Text>
+                                 <Metric className="text-lg">${pricing?.wm}</Metric>
+                             </div>
+                             <div className="bg-gray-50 p-2 rounded text-center">
+                                 <Text className="text-xs">East Msia</Text>
+                                 <Metric className="text-lg">${pricing?.em}</Metric>
+                             </div>
+                        </div>
+                    </div>
+                    <div className="mt-6">
+                        <Text className="font-bold">Vendors</Text>
+                         <Table className="mt-2">
+                            <TableHead>
+                                <TableRow>
+                                    <TableHeaderCell>Name</TableHeaderCell>
+                                    <TableHeaderCell>Cost</TableHeaderCell>
+                                    <TableHeaderCell>Lead Time</TableHeaderCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {vendors?.map((v, i) => (
+                                    <TableRow key={i}>
+                                        <TableCell>{v.name}</TableCell>
+                                        <TableCell>${v.cost}</TableCell>
+                                        <TableCell>{v.lead_time} days</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                 </Card>
+
+                 {/* Location Breakdown */}
+                 <Card>
+                     <Title>Location Breakdown</Title>
+                     <Text>Stock distribution across warehouses and channels.</Text>
+                     <Table className="mt-4">
+                        <TableHead>
+                            <TableRow>
+                                <TableHeaderCell>Location</TableHeaderCell>
+                                <TableHeaderCell>Type</TableHeaderCell>
+                                <TableHeaderCell className="text-right">Quantity</TableHeaderCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {locations?.map((loc, i) => (
+                                <TableRow key={i}>
+                                    <TableCell>{loc.location}</TableCell>
+                                    <TableCell>
+                                        <Badge size="xs" color={loc.type === 'Physical Warehouse' ? 'blue' : 'purple'}>
+                                            {loc.type === 'Physical Warehouse' ? 'Warehouse' : 'Channel'}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono font-bold">{loc.quantity}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                     </Table>
+                 </Card>
             </div>
 
             {/* Bottom Row: Analytics */}
