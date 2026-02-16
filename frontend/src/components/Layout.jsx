@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutGrid, Package, ShoppingCart, User, LogOut } from 'lucide-react';
+import { LayoutGrid, Package, ShoppingCart, User, LogOut, Truck } from 'lucide-react';
 
 const Layout = ({ children, isFixed = false }) => {
   const location = useLocation();
@@ -8,6 +8,7 @@ const Layout = ({ children, isFixed = false }) => {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutGrid },
     { name: 'Inventory', path: '/inventory', icon: Package },
+    { name: 'Suppliers', path: '/suppliers', icon: Truck },
     { name: 'Orders', path: '/orders', icon: ShoppingCart },
     { name: 'Profile', path: '/profile', icon: User },
   ];
