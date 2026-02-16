@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Layout from './Layout';
 import { Card, Title, Text, LineChart, Metric, Flex, Badge, Button, Callout } from "@tremor/react";
 import { ArrowRight, TrendingUp, AlertCircle, ShoppingCart, DollarSign, BrainCircuit } from 'lucide-react';
 import axios from 'axios';
@@ -74,8 +75,8 @@ const Dashboard = () => {
   }
 
   return (
-    <main className="bg-slate-50 p-6 sm:p-10 min-h-screen">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <Layout>
+      <div className="space-y-6">
 
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -85,7 +86,6 @@ const Dashboard = () => {
             </div>
             <div className="flex space-x-2">
                  <Badge color="blue" icon={BrainCircuit}>AI Active</Badge>
-                 <Button variant="secondary" color="gray" onClick={() => window.location.href = '/'}>Logout</Button>
             </div>
         </div>
 
@@ -221,7 +221,7 @@ const Dashboard = () => {
         </Card>
 
       </div>
-    </main>
+    </Layout>
   );
 };
 

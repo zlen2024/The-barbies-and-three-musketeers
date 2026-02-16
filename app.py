@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -109,6 +109,143 @@ def api_generate_pr():
         return jsonify({'success': True, 'message': f'Purchase Request created for {product.sku_id}'})
 
     return jsonify({'success': False, 'message': 'Product not found'}), 404
+
+# API: Inventory List
+@app.route('/api/inventory', methods=['GET'])
+@login_required
+def api_inventory():
+    products = Product.query.all()
+    inventory_list = []
+
+    for product in products:
+        # Calculate AMS (3-Month)
+        cutoff_3m = datetime.utcnow() - timedelta(days=90)
+        total_sales_3m = db.session.query(db.func.sum(HistoricalSales.quantity_sold)).filter(
+            HistoricalSales.sku_id_fk == product.id,
+            HistoricalSales.transaction_date >= cutoff_3m
+        ).scalar() or 0
+        ams_3m = round(total_sales_3m / 3, 1)
+
+        inventory_list.append({
+            'id': product.id,
+            'sku_id': product.sku_id,
+            'product_name': product.product_name,
+            'total_stock': product.inventory.total_stock_on_hand if product.inventory else 0,
+            'ams_3m': ams_3m,
+            'status': product.stock_status
+        })
+
+    return jsonify(inventory_list)
+
+# API: Product Detail
+@app.route('/api/inventory/products/<path:sku>', methods=['GET'])
+@login_required
+def api_product_detail(sku):
+    product = Product.query.filter_by(sku_id=sku).first()
+    if not product:
+        return jsonify({'error': 'Product not found'}), 404
+
+    # Calculate AMS
+    cutoff_3m = datetime.utcnow() - timedelta(days=90)
+    total_sales_3m = db.session.query(db.func.sum(HistoricalSales.quantity_sold)).filter(
+        HistoricalSales.sku_id_fk == product.id,
+        HistoricalSales.transaction_date >= cutoff_3m
+    ).scalar() or 0
+    ams_3m = round(total_sales_3m / 3, 1)
+
+    cutoff_6m = datetime.utcnow() - timedelta(days=180)
+    total_sales_6m = db.session.query(db.func.sum(HistoricalSales.quantity_sold)).filter(
+        HistoricalSales.sku_id_fk == product.id,
+        HistoricalSales.transaction_date >= cutoff_6m
+    ).scalar() or 0
+    ams_6m = round(total_sales_6m / 6, 1)
+
+    # Calculate Trend
+    trend_percentage = 0
+    if ams_6m > 0:
+        trend_percentage = round(((ams_3m - ams_6m) / ams_6m) * 100, 1)
+
+    # Coverage
+    coverage = 0
+    if ams_3m > 0 and product.inventory:
+        coverage = round(product.inventory.total_stock_on_hand / ams_3m, 1)
+
+    # Sales Channel Distribution
+    sales_channels = db.session.query(
+        HistoricalSales.sales_channel,
+        db.func.sum(HistoricalSales.quantity_sold)
+    ).filter(
+        HistoricalSales.sku_id_fk == product.id
+    ).group_by(HistoricalSales.sales_channel).all()
+
+    distribution_data = [{'name': channel, 'value': quantity} for channel, quantity in sales_channels]
+
+    # Sales Trend (Line Chart) - Last 6 months
+    # Simplified aggregation by month
+    sales_trend = []
+    today = datetime.utcnow()
+    for i in range(5, -1, -1):
+        month_start = (today - timedelta(days=30*i)).replace(day=1)
+        # Simple approximation for demo, ideally use proper date truncation
+        month_end = month_start + timedelta(days=30)
+
+        monthly_sales = db.session.query(db.func.sum(HistoricalSales.quantity_sold)).filter(
+            HistoricalSales.sku_id_fk == product.id,
+            HistoricalSales.transaction_date >= month_start,
+            HistoricalSales.transaction_date < month_end
+        ).scalar() or 0
+
+        sales_trend.append({
+            'date': month_start.strftime("%b"),
+            'Actual Sales': monthly_sales,
+            'Forecast': monthly_sales * 1.1 # Mock forecast slightly higher
+        })
+
+    # Purchase Requests
+    prs = PurchaseRequest.query.filter_by(sku_id_fk=product.id).order_by(PurchaseRequest.timestamp.desc()).all()
+    pr_data = [{
+        'id': pr.id,
+        'quantity': pr.requested_quantity,
+        'status': pr.status,
+        'date': pr.timestamp.strftime("%Y-%m-%d"),
+        'eta': (pr.timestamp + timedelta(days=product.lead_time)).strftime("%Y-%m-%d") if pr.status == 'Approved' else 'N/A'
+    } for pr in prs]
+
+    data = {
+        'product': {
+            'name': product.product_name,
+            'sku': product.sku_id,
+            'category': product.category,
+            'status': product.stock_status,
+            'lead_time': product.lead_time
+        },
+        'stock_health': {
+            'total_physical': product.inventory.total_stock_on_hand if product.inventory else 0,
+            'reserved': 0, # Mock value
+            'free_to_sell': product.inventory.total_stock_on_hand if product.inventory else 0 # Simplified
+        },
+        'velocity': {
+            'ams_3m': ams_3m,
+            'ams_6m': ams_6m,
+            'trend_percentage': trend_percentage
+        },
+        'incoming': {
+            'total_incoming': product.inventory.incoming_stock if product.inventory else 0,
+            'next_eta': (datetime.utcnow() + timedelta(days=15)).strftime("%b %d"), # Mock ETA
+            'stockout_risk': product.forecast.smart_why_rationale if product.forecast else "No immediate risk."
+        },
+        'analytics': {
+            'coverage': coverage,
+            'distribution': distribution_data,
+            'sales_trend': sales_trend
+        },
+        'orders': pr_data,
+        'forecast': {
+            'rationale': product.forecast.smart_why_rationale if product.forecast else "No forecast available."
+        }
+    }
+
+    return jsonify(data)
 
 # Serve React App for all other routes
 @app.route('/', defaults={'path': ''})
