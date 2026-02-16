@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutGrid, Package, ShoppingCart, User, LogOut } from 'lucide-react';
 
-const Layout = ({ children }) => {
+const Layout = ({ children, isFixed = false }) => {
   const location = useLocation();
 
   const navItems = [
@@ -13,9 +13,9 @@ const Layout = ({ children }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className={`flex flex-col bg-slate-50 ${isFixed ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 flex-none">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
@@ -63,12 +63,12 @@ const Layout = ({ children }) => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 ${isFixed ? 'overflow-hidden' : ''}`}>
         {children}
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-auto">
+      <footer className="bg-white border-t border-gray-200 mt-auto flex-none">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <p className="text-center text-sm text-gray-500">
             &copy; {new Date().getFullYear()} InventoryAI. All rights reserved.
