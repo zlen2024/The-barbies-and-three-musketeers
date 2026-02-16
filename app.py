@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Product, Inventory, Forecast, HistoricalSales, PurchaseRequest, Vendor
+from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast
 
 # Configure Flask to serve React build files
 app = Flask(__name__, static_folder='frontend/dist')
@@ -27,17 +27,18 @@ def unauthorized():
 @app.route('/api/login', methods=['POST'])
 def api_login():
     data = request.json
-    email = data.get('email')
+    username_or_email = data.get('email') # Frontend sends 'email' field
     password = data.get('password')
 
-    user = User.query.filter_by(username=email).first()
+    # Try matching username first
+    user = User.query.filter_by(username=username_or_email).first()
 
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
 
     login_user(user)
-    user.last_login = datetime.utcnow()
-    db.session.commit()
+    # user.last_login = datetime.utcnow() # User model doesn't have last_login anymore in new schema
+    # db.session.commit()
 
     return jsonify({'success': True, 'role': user.role})
 
@@ -59,26 +60,88 @@ def check_auth():
 @app.route('/api/dashboard', methods=['GET'])
 @login_required
 def api_dashboard():
-    # Mock aggregation for chart
-    # In a real app, query HistoricalSales and Forecast tables
-    chart_data = [
-        { "date": "Jan", "Actual Sales": 4500, "AI Prediction": 4600 },
-        { "date": "Feb", "Actual Sales": 5200, "AI Prediction": 5100 },
-        { "date": "Mar", "Actual Sales": 4800, "AI Prediction": 4900 },
-        { "date": "Apr", "Actual Sales": 6100, "AI Prediction": 5900 },
-        { "date": "May", "Actual Sales": 5500, "AI Prediction": 5800 },
-        { "date": "Jun", "Actual Sales": 6700, "AI Prediction": 6500 },
-    ]
+    # 1. Total Sales (Revenue Estimate)
+    # Join Sale -> ProductLoc -> Product -> Pricing
+    # This is complex in SQLAlchmey without proper primaryjoin if ambiguity exists, but let's try a simpler approach or direct join.
+    # For MVP/Demo: Iterate sales or simple sum.
 
-    # Example fetching product details for summary
+    # Let's just sum quantity for now as "Total Units Sold" or try to estimate revenue
+    total_sales_units = db.session.query(db.func.sum(Sale.quantity_sold)).scalar() or 0
+
+    # Estimate Revenue: Get all sales, and for each, find the product's price.
+    # This is heavy for production but fine for demo.
+    # Better: SQL Query
+    # SELECT SUM(s.quantity_sold * p.lsp_price) FROM sale s
+    # JOIN product_loc pl ON s.pl_id = pl.pl_id
+    # JOIN product pr ON pl.product_id = pr.product_id
+    # JOIN pricing p ON pr.product_id = p.product_id
+
+    total_revenue = 0
+    sales = Sale.query.all()
+    # Cache pricing
+    pricings = {p.product_id: p.lsp_price for p in Pricing.query.all()}
+
+    for sale in sales:
+        prod_id = sale.product_loc.product_id
+        price = pricings.get(prod_id, 0)
+        total_revenue += sale.quantity_sold * price
+
+    # 2. Predicted Demand
+    total_predicted_demand = db.session.query(db.func.sum(Forecast.projected_demand)).scalar() or 0
+
+    # 3. Chart Data (Sales by Month)
+    # Group by YYYY-MM
+    # SQLite strftime is %Y-%m
+
+    # We need to aggregate sales by month for the last 6 months
+    today = datetime.now() # Use now() instead of utcnow()
+    chart_data = []
+
+    for i in range(5, -1, -1):
+        # Calculate start and end of the month
+        # Logic: Go back i months.
+        # This is a bit rough for days, let's just pick month names.
+
+        target_month_date = today - timedelta(days=30*i)
+        month_str = target_month_date.strftime("%b")
+        month_num = target_month_date.strftime("%m")
+        year_num = target_month_date.strftime("%Y")
+
+        # Query sales for this month
+        # SQLite specific date string matching or range
+        # Let's filter by range
+
+        # Start of month
+        start_date = datetime(int(year_num), int(month_num), 1)
+        # End of month (start of next month)
+        if int(month_num) == 12:
+            end_date = datetime(int(year_num) + 1, 1, 1)
+        else:
+            end_date = datetime(int(year_num), int(month_num) + 1, 1)
+
+        actual_sales = db.session.query(db.func.sum(Sale.quantity_sold)).filter(
+            Sale.sale_date >= start_date,
+            Sale.sale_date < end_date
+        ).scalar() or 0
+
+        # Mock Prediction (slightly different from actual)
+        prediction = int(actual_sales * 1.05) + 50
+
+        chart_data.append({
+            "date": month_str,
+            "Actual Sales": actual_sales,
+            "AI Prediction": prediction
+        })
+
+    # 4. Product Count
     product_count = Product.query.count()
 
     data = {
-        'totalSales': 32800,
-        'predictedDemand': 34500,
-        'accuracy': "94.2%",
+        'totalSales': total_revenue, # Sending Value
+        'predictedDemand': total_predicted_demand,
+        'accuracy': "92.5%", # Mock
         'chartData': chart_data,
-        'smartWhy': "Demand is expected to rise by 12% in Q3 due to seasonal trends and competitor stock-outs in the region. Recommendation: Increase inventory for SKU-123 by 15%.",
+        'smartWhy': "Inventory turnover is optimal in Main Warehouse, but Online Channels are showing a 15% stockout risk for high-velocity items. Recommend rebalancing stock to channels.",
         'productCount': product_count
     }
     return jsonify(data)
@@ -88,25 +151,31 @@ def api_dashboard():
 @login_required
 def api_generate_pr():
     data = request.json
-    sku_id = data.get('sku_id', 'SKU-123') # Default for demo
+    sku_id = data.get('sku_id', 'SKU-123')
     quantity = data.get('quantity', 100)
 
-    # Find product by SKU string or ID
-    product = Product.query.filter_by(sku_id=sku_id).first()
+    # Find product by model_code
+    product = Product.query.filter_by(model_code=sku_id).first()
     if not product:
-         # Fallback to first product if SKU not found
+         # Fallback to first product if SKU not found (for demo resilience)
         product = Product.query.first()
 
     if product:
-        pr = PurchaseRequest(
-            sku_id_fk=product.id,
-            requested_quantity=int(quantity),
+        # Auto-select a vendor (in real app, user selects)
+        pv = ProductVendor.query.filter_by(product_id=product.id).first()
+        if not pv:
+            return jsonify({'success': False, 'message': 'No vendor found for this product'}), 400
+
+        pr = ProductOrder(
+            pv_id=pv.id,
+            order_qty=int(quantity),
             status='Pending',
+            confirmation_status='Pending', # Acts as PR
             created_by=current_user.id
         )
         db.session.add(pr)
         db.session.commit()
-        return jsonify({'success': True, 'message': f'Purchase Request created for {product.sku_id}'})
+        return jsonify({'success': True, 'message': f'Purchase Request created for {product.model_code}'})
 
     return jsonify({'success': False, 'message': 'Product not found'}), 404
 
@@ -119,20 +188,29 @@ def api_inventory():
 
     for product in products:
         # Calculate AMS (3-Month)
-        cutoff_3m = datetime.utcnow() - timedelta(days=90)
-        total_sales_3m = db.session.query(db.func.sum(HistoricalSales.quantity_sold)).filter(
-            HistoricalSales.sku_id_fk == product.id,
-            HistoricalSales.transaction_date >= cutoff_3m
+        cutoff_3m = datetime.now() - timedelta(days=90)
+        total_sales_3m = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
+            ProductLoc.product_id == product.id,
+            Sale.sale_date >= cutoff_3m
         ).scalar() or 0
         ams_3m = round(total_sales_3m / 3, 1)
 
+        # Status Logic
+        stock = product.total_stock
+        if stock == 0:
+            status_display = "Critical"
+        elif stock < 50:
+            status_display = "Low Stock"
+        else:
+            status_display = "In Stock"
+
         inventory_list.append({
             'id': product.id,
-            'sku_id': product.sku_id,
+            'sku_id': product.model_code,
             'product_name': product.product_name,
-            'total_stock': product.inventory.total_stock_on_hand if product.inventory else 0,
+            'total_stock': stock,
             'ams_3m': ams_3m,
-            'status': product.stock_status
+            'status': status_display
         })
 
     return jsonify(inventory_list)
@@ -141,22 +219,23 @@ def api_inventory():
 @app.route('/api/inventory/products/<path:sku>', methods=['GET'])
 @login_required
 def api_product_detail(sku):
-    product = Product.query.filter_by(sku_id=sku).first()
+    # sku here is model_code
+    product = Product.query.filter_by(model_code=sku).first()
     if not product:
         return jsonify({'error': 'Product not found'}), 404
 
     # Calculate AMS
-    cutoff_3m = datetime.utcnow() - timedelta(days=90)
-    total_sales_3m = db.session.query(db.func.sum(HistoricalSales.quantity_sold)).filter(
-        HistoricalSales.sku_id_fk == product.id,
-        HistoricalSales.transaction_date >= cutoff_3m
+    cutoff_3m = datetime.now() - timedelta(days=90)
+    total_sales_3m = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
+        ProductLoc.product_id == product.id,
+        Sale.sale_date >= cutoff_3m
     ).scalar() or 0
     ams_3m = round(total_sales_3m / 3, 1)
 
-    cutoff_6m = datetime.utcnow() - timedelta(days=180)
-    total_sales_6m = db.session.query(db.func.sum(HistoricalSales.quantity_sold)).filter(
-        HistoricalSales.sku_id_fk == product.id,
-        HistoricalSales.transaction_date >= cutoff_6m
+    cutoff_6m = datetime.now() - timedelta(days=180)
+    total_sales_6m = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
+        ProductLoc.product_id == product.id,
+        Sale.sale_date >= cutoff_6m
     ).scalar() or 0
     ams_6m = round(total_sales_6m / 6, 1)
 
@@ -167,62 +246,105 @@ def api_product_detail(sku):
 
     # Coverage
     coverage = 0
-    if ams_3m > 0 and product.inventory:
-        coverage = round(product.inventory.total_stock_on_hand / ams_3m, 1)
+    if ams_3m > 0:
+        coverage = round(product.total_stock / ams_3m, 1)
 
     # Sales Channel Distribution
     sales_channels = db.session.query(
-        HistoricalSales.sales_channel,
-        db.func.sum(HistoricalSales.quantity_sold)
-    ).filter(
-        HistoricalSales.sku_id_fk == product.id
-    ).group_by(HistoricalSales.sales_channel).all()
+        Location.description,
+        db.func.sum(Sale.quantity_sold)
+    ).join(ProductLoc, ProductLoc.location_id == Location.id).join(Sale, Sale.pl_id == ProductLoc.id).filter(
+        ProductLoc.product_id == product.id
+    ).group_by(Location.description).all()
 
     distribution_data = [{'name': channel, 'value': quantity} for channel, quantity in sales_channels]
 
     # Sales Trend (Line Chart) - Last 6 months
-    # Simplified aggregation by month
     sales_trend = []
-    today = datetime.utcnow()
+    today = datetime.now()
     for i in range(5, -1, -1):
         month_start = (today - timedelta(days=30*i)).replace(day=1)
-        # Simple approximation for demo, ideally use proper date truncation
-        month_end = month_start + timedelta(days=30)
+        if today.month == 12 and i == 0:
+             month_end = datetime(today.year + 1, 1, 1)
+        elif i == 0:
+             # Logic for current month end is tricky without dateutil, so let's just go to next month start of today
+             # Assuming today is safe
+             if today.month == 12:
+                 month_end = datetime(today.year + 1, 1, 1)
+             else:
+                 month_end = datetime(today.year, today.month + 1, 1)
+        else:
+             month_end = month_start + timedelta(days=30) # Rough approx
 
-        monthly_sales = db.session.query(db.func.sum(HistoricalSales.quantity_sold)).filter(
-            HistoricalSales.sku_id_fk == product.id,
-            HistoricalSales.transaction_date >= month_start,
-            HistoricalSales.transaction_date < month_end
+        monthly_sales = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
+            ProductLoc.product_id == product.id,
+            Sale.sale_date >= month_start,
+            Sale.sale_date < month_end
         ).scalar() or 0
 
         sales_trend.append({
             'date': month_start.strftime("%b"),
             'Actual Sales': monthly_sales,
-            'Forecast': monthly_sales * 1.1 # Mock forecast slightly higher
+            'Forecast': monthly_sales * 1.1
         })
 
-    # Purchase Requests
-    prs = PurchaseRequest.query.filter_by(sku_id_fk=product.id).order_by(PurchaseRequest.timestamp.desc()).all()
+    # Purchase Orders
+    orders = db.session.query(ProductOrder).join(ProductVendor).filter(
+        ProductVendor.product_id == product.id
+    ).order_by(ProductOrder.created_at.desc()).all()
+
+    # Calculate Avg Lead Time
+    avg_lead_time = 0
+    if product.product_vendors:
+        avg_lead_time = sum([pv.lead_time_days for pv in product.product_vendors]) / len(product.product_vendors)
+
     pr_data = [{
-        'id': pr.id,
-        'quantity': pr.requested_quantity,
-        'status': pr.status,
-        'date': pr.timestamp.strftime("%Y-%m-%d"),
-        'eta': (pr.timestamp + timedelta(days=product.lead_time)).strftime("%Y-%m-%d") if pr.status == 'Approved' else 'N/A'
-    } for pr in prs]
+        'id': order.id,
+        'quantity': order.order_qty,
+        'status': order.status if order.confirmation_status == 'Confirmed' else 'Pending Approval',
+        'date': order.created_at.strftime("%Y-%m-%d") if order.created_at else '',
+        'eta': order.ets_date.strftime("%Y-%m-%d") if order.ets_date else 'N/A'
+    } for order in orders]
+
+    # Location Breakdown
+    location_stock = [{
+        'location': pl.location.description,
+        'type': pl.location.type,
+        'quantity': pl.quantity_on_hand
+    } for pl in product.product_locs]
+
+    # Vendors
+    vendor_info = [{
+        'name': pv.vendor.vendor_name,
+        'cost': pv.cost_price,
+        'lead_time': pv.lead_time_days
+    } for pv in product.product_vendors]
+
+    # Pricing
+    pricing_info = {}
+    if product.pricing:
+        p = product.pricing[0]
+        pricing_info = {
+            'lsp': p.lsp_price,
+            'wm': p.wm_price,
+            'em': p.em_price
+        }
+
+    # Incoming Stock
+    total_incoming = sum([o.order_qty for o in orders if o.status == 'Ordered'])
 
     data = {
         'product': {
             'name': product.product_name,
-            'sku': product.sku_id,
+            'sku': product.model_code,
             'category': product.category,
-            'status': product.stock_status,
-            'lead_time': product.lead_time
+            'status': "In Stock" if product.total_stock > 0 else "Critical",
+            'lead_time': int(avg_lead_time)
         },
         'stock_health': {
-            'total_physical': product.inventory.total_stock_on_hand if product.inventory else 0,
-            'reserved': 0, # Mock value
-            'free_to_sell': product.inventory.total_stock_on_hand if product.inventory else 0 # Simplified
+            'total_physical': product.total_stock,
+            'reserved': 0,
+            'free_to_sell': product.total_stock
         },
         'velocity': {
             'ams_3m': ams_3m,
@@ -230,8 +352,8 @@ def api_product_detail(sku):
             'trend_percentage': trend_percentage
         },
         'incoming': {
-            'total_incoming': product.inventory.incoming_stock if product.inventory else 0,
-            'next_eta': (datetime.utcnow() + timedelta(days=15)).strftime("%b %d"), # Mock ETA
+            'total_incoming': total_incoming,
+            'next_eta': "TBD",
             'stockout_risk': product.forecast.smart_why_rationale if product.forecast else "No immediate risk."
         },
         'analytics': {
@@ -242,7 +364,10 @@ def api_product_detail(sku):
         'orders': pr_data,
         'forecast': {
             'rationale': product.forecast.smart_why_rationale if product.forecast else "No forecast available."
-        }
+        },
+        'locations': location_stock,
+        'vendors': vendor_info,
+        'pricing': pricing_info
     }
 
     return jsonify(data)
@@ -257,6 +382,5 @@ def serve(path):
         return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+    # No db.create_all() here, relying on seed script
     app.run(debug=True)

@@ -5,6 +5,7 @@ import { ArrowRight, TrendingUp, AlertCircle, ShoppingCart, DollarSign, BrainCir
 import axios from 'axios';
 
 const valueFormatter = (number) => `$ ${new Intl.NumberFormat("us").format(number).toString()}`;
+const numberFormatter = (number) => `${new Intl.NumberFormat("us").format(number).toString()}`;
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -25,25 +26,11 @@ const Dashboard = () => {
 
   useEffect(() => {
     // Fetch data from API
-    // For now, we simulate API call
     const fetchData = async () => {
         try {
-            // Uncomment when API is ready
-            // const response = await axios.get('/api/dashboard');
-            // setData(response.data);
-
-            // Mock response
-            setTimeout(() => {
-                setData({
-                    totalSales: 32800,
-                    predictedDemand: 34500,
-                    accuracy: "94.2%",
-                    chartData: mockChartData,
-                    smartWhy: "Demand is expected to rise by 12% in Q3 due to seasonal trends and competitor stock-outs in the region. Recommendation: Increase inventory for SKU-123 by 15%."
-                });
-                setLoading(false);
-            }, 1000);
-
+            const response = await axios.get('/api/dashboard');
+            setData(response.data);
+            setLoading(false);
         } catch (error) {
             console.error("Error fetching dashboard data", error);
             setLoading(false);
@@ -63,10 +50,11 @@ const Dashboard = () => {
   const handleGeneratePR = async () => {
       try {
           alert("Generating Purchase Request...");
-          await axios.post('/api/generate-pr', { sku_id: 'SKU-123', quantity: 100 });
+          await axios.post('/api/generate-pr', { sku_id: 'HT-PLATZ-450-H', quantity: 100 });
           alert("Purchase Request Generated Successfully! PDF sent to email.");
       } catch (e) {
-          alert("Error generating PR");
+          console.error(e);
+          alert("Error generating PR: " + (e.response?.data?.message || e.message));
       }
   };
 
@@ -109,7 +97,7 @@ const Dashboard = () => {
                     </div>
                     <div>
                         <Text>Predicted Demand (Q3)</Text>
-                        <Metric>{valueFormatter(data?.predictedDemand)}</Metric>
+                        <Metric>{numberFormatter(data?.predictedDemand)}</Metric>
                     </div>
                 </Flex>
             </Card>

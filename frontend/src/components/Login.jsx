@@ -77,7 +77,7 @@ const Login = () => {
           <form className="space-y-6" onSubmit={handleLogin}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
+                Username or Email
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -86,13 +86,13 @@ const Login = () => {
                 <input
                   id="email"
                   name="email"
-                  type="email"
-                  autoComplete="email"
+                  type="text"
+                  autoComplete="username"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2 border"
-                  placeholder={role === 'Procurement' ? 'admin@inventory.ai' : 'sales@inventory.ai'}
+                  placeholder={role === 'Procurement' ? 'admin' : 'sales'}
                 />
               </div>
             </div>
@@ -152,8 +152,8 @@ const Login = () => {
                 </div>
 
                 <div className="mt-6 grid grid-cols-1 gap-3 text-xs text-gray-500 text-center">
-                   <p>Procurement: admin@inventory.ai / admin123</p>
-                   <p>Sales: sales@inventory.ai / sales123</p>
+                   <p>Procurement: admin / password</p>
+                   <p>Sales: sales / password</p>
                 </div>
             </div>
 
