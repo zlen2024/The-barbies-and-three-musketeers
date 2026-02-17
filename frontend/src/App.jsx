@@ -6,6 +6,7 @@ import InventoryList from './components/InventoryList';
 import ProductDetail from './components/ProductDetail';
 import Suppliers from './components/Suppliers';
 import Orders from './components/Orders';
+import OrderDetail from './components/OrderDetail';
 import Profile from './components/Profile';
 import './index.css';
 
@@ -62,6 +63,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Orders />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orders/:orderId"
+          element={
+            <ProtectedRoute>
+              <OrderDetail />
             </ProtectedRoute>
           }
         />

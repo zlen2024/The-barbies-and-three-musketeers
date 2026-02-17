@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from './Layout';
 import {
@@ -29,9 +29,12 @@ import {
   BrainCircuit,
   MessageCircle,
   Send,
-  Package
+  Package,
+  X,
+  Mail
 } from 'lucide-react';
 import axios from 'axios';
+import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 
 const valueFormatter = (number) => `${new Intl.NumberFormat("us").format(number).toString()}`;
 
@@ -41,12 +44,23 @@ const ProductDetail = () => {
   const [loading, setLoading] = useState(true);
   const [chatMessage, setChatMessage] = useState('');
 
+  // PO Modal State
+  const [isPOModalOpen, setIsPOModalOpen] = useState(false);
+  const [poQuantity, setPoQuantity] = useState(100);
+  const [poVendorId, setPoVendorId] = useState('');
+  const [emailPreview, setEmailPreview] = useState('');
+  const [isSending, setIsSending] = useState(false);
+
   useEffect(() => {
     const fetchProductDetail = async () => {
       try {
         const response = await axios.get(`/api/inventory/products/${sku}`);
         setProductData(response.data);
         setLoading(false);
+        // Set default vendor if available
+        if (response.data.vendors && response.data.vendors.length > 0) {
+            setPoVendorId(response.data.vendors[0].id);
+        }
       } catch (error) {
         console.error("Error fetching product detail", error);
         setLoading(false);
@@ -74,12 +88,48 @@ const ProductDetail = () => {
 
   const { product, stock_health, velocity, incoming, analytics, orders, locations, vendors, pricing } = productData;
 
-  const handleCreatePO = async (sku) => {
+  const handleOpenPOModal = () => {
+      setIsPOModalOpen(true);
+      setEmailPreview('');
+  };
+
+  const handleGenerateEmail = () => {
+      const vendor = vendors.find(v => v.id == poVendorId);
+      const vendorName = vendor ? vendor.name : "Vendor";
+      const emailText = `Subject: Purchase Order Request - ${product.name}
+
+Dear ${vendorName} Sales Team,
+
+Please accept this purchase order for the following items:
+
+Item: ${product.name} (SKU: ${product.sku})
+Quantity: ${poQuantity} units
+Required Delivery: ASAP
+
+Please confirm receipt and provide an estimated delivery date.
+
+Best regards,
+Procurement Manager
+InventoryAI System`;
+      setEmailPreview(emailText);
+  };
+
+  const handleSubmitPO = async () => {
+      setIsSending(true);
       try {
-          await axios.post('/api/generate-pr', { sku_id: sku, quantity: 100 });
+          await axios.post('/api/generate-pr', {
+              sku_id: product.sku,
+              quantity: poQuantity,
+              vendor_id: poVendorId
+          });
           alert("PR Created Successfully!");
+          setIsPOModalOpen(false);
+          // Refresh data to show new order?
+          // For now just close.
       } catch (e) {
           alert("Error creating PR: " + (e.response?.data?.message || e.message));
+      } finally {
+          setIsSending(false);
       }
   };
 
@@ -116,7 +166,7 @@ const ProductDetail = () => {
                         </div>
                     </div>
                     <div className="mt-4 sm:mt-0">
-                        <Button icon={ShoppingCart} size="lg" color="blue" onClick={() => handleCreatePO(product.sku)}>
+                        <Button icon={ShoppingCart} size="lg" color="blue" onClick={handleOpenPOModal}>
                             Create PO
                         </Button>
                     </div>
@@ -395,6 +445,112 @@ const ProductDetail = () => {
         </div>
 
       </div>
+
+      {/* CREATE PO MODAL */}
+      <Transition show={isPOModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setIsPOModalOpen(false)}>
+          <TransitionChild
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/30" />
+          </TransitionChild>
+
+          <div className="fixed inset-0 w-screen overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <TransitionChild
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <DialogPanel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                  <div className="flex justify-between items-center mb-4">
+                    <DialogTitle as="h3" className="text-lg font-medium leading-6 text-gray-900">
+                      Create Purchase Order
+                    </DialogTitle>
+                    <button onClick={() => setIsPOModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Vendor</label>
+                          <select
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                            value={poVendorId}
+                            onChange={(e) => setPoVendorId(e.target.value)}
+                          >
+                              {vendors?.map(v => (
+                                  <option key={v.id} value={v.id}>{v.name} (Lead Time: {v.lead_time} days)</option>
+                              ))}
+                          </select>
+                      </div>
+
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Quantity</label>
+                          <input
+                            type="number"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                            value={poQuantity}
+                            onChange={(e) => setPoQuantity(e.target.value)}
+                          />
+                      </div>
+
+                      {emailPreview && (
+                          <div className="mt-4">
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Email Preview</label>
+                              <div className="bg-gray-50 p-3 rounded-md border text-sm font-mono whitespace-pre-wrap text-gray-600">
+                                  {emailPreview}
+                              </div>
+                          </div>
+                      )}
+
+                      <div className="mt-6 flex justify-between">
+                          <Button
+                            variant="secondary"
+                            icon={Mail}
+                            onClick={handleGenerateEmail}
+                          >
+                              Generate Email
+                          </Button>
+
+                          <div className="flex space-x-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsPOModalOpen(false)}
+                                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSubmitPO}
+                                disabled={isSending}
+                                className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none"
+                            >
+                                {isSending ? 'Sending...' : 'Send Request'}
+                            </button>
+                          </div>
+                      </div>
+                  </div>
+
+                </DialogPanel>
+              </TransitionChild>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+
     </Layout>
   );
 };
