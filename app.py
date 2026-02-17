@@ -40,7 +40,7 @@ def api_login():
     # user.last_login = datetime.utcnow() # User model doesn't have last_login anymore in new schema
     # db.session.commit()
 
-    return jsonify({'success': True, 'role': user.role})
+    return jsonify({'success': True, 'role': user.role, 'username': user.username})
 
 # API: Logout
 @app.route('/api/logout', methods=['POST'])

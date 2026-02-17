@@ -23,6 +23,7 @@ const Login = () => {
       if (response.data.success) {
         // Store user role or token if needed, but session cookie is handled by browser
         localStorage.setItem('userRole', response.data.role);
+        localStorage.setItem('username', response.data.username);
         navigate('/dashboard');
       } else {
         setError(response.data.message || 'Login failed');
