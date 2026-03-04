@@ -1,11 +1,24 @@
 import os
+import logging
+import traceback
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, current_app
 from functools import wraps
 from sqlalchemy.orm import joinedload
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast, UserLocation, Invoice
+
+
+# Configure Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Configure Flask to serve React build files
 app = Flask(__name__, static_folder='frontend/dist')
@@ -21,9 +34,53 @@ login_manager.init_app(app)
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+
 @login_manager.unauthorized_handler
 def unauthorized():
     return jsonify({'error': 'Unauthorized'}), 401
+
+@app.before_request
+def log_request_info():
+    if request.path.startswith('/api/'):
+        user_info = "Anonymous"
+        if current_user.is_authenticated:
+            user_info = f"User: {current_user.username} (Role: {current_user.role}, ID: {current_user.id})"
+        logger.info(f"Incoming Request: {request.method} {request.path} | {user_info}")
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Log the full stack trace
+    logger.error(f"Unhandled Exception: {str(e)}\n{traceback.format_exc()}")
+    # Return JSON for API routes
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'message': 'An internal server error occurred', 'error': str(e)}), 500
+    # Otherwise render a generic error or just return string
+    return "Internal Server Error", 500
+
+# API: Client Logs
+@app.route('/api/client-logs', methods=['POST'])
+def api_client_logs():
+    data = request.json or {}
+    level = data.get('level', 'error').lower()
+    message = data.get('message', 'Unknown client error')
+    stack = data.get('stack', '')
+    user_info = "Anonymous"
+    if current_user.is_authenticated:
+        user_info = f"User: {current_user.username} (Role: {current_user.role}, ID: {current_user.id})"
+
+    log_msg = f"Client Log [{level.upper()}] - {user_info}: {message}"
+    if stack:
+        log_msg += f"\nStack: {stack}"
+
+    if level == 'error':
+        logger.error(log_msg)
+    elif level == 'warn':
+        logger.warning(log_msg)
+    else:
+        logger.info(log_msg)
+
+    return jsonify({'success': True})
+
 
 def role_required(*roles):
     def wrapper(fn):
@@ -204,9 +261,15 @@ def api_generate_pr():
             confirmation_status='Pending', # Acts as PR
             created_by=current_user.id
         )
-        db.session.add(pr)
-        db.session.commit()
-        return jsonify({'success': True, 'message': f'Purchase Request created for {product.model_code}'})
+        try:
+            db.session.add(pr)
+            db.session.commit()
+            logger.info(f"Purchase Request created successfully for {product.model_code} by user {current_user.username}")
+            return jsonify({'success': True, 'message': f'Purchase Request created for {product.model_code}'})
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Failed to create Purchase Request for {product.model_code}: {str(e)}\n")
+            return jsonify({'success': False, 'message': 'Database error occurred while creating Purchase Request'}), 500
 
     return jsonify({'success': False, 'message': 'Product not found'}), 404
 
@@ -335,10 +398,15 @@ def api_add_product():
         brand=brand,
         status=status
     )
-    db.session.add(new_product)
-    db.session.commit()
-
-    return jsonify({'success': True, 'message': 'Product added successfully', 'id': new_product.id})
+    try:
+        db.session.add(new_product)
+        db.session.commit()
+        logger.info(f"Product added successfully: {model_code} by user {current_user.username}")
+        return jsonify({'success': True, 'message': 'Product added successfully', 'id': new_product.id})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to add Product {model_code}: {str(e)}\n")
+        return jsonify({'success': False, 'message': 'Database error occurred while adding Product'}), 500
 
 # API: Get Vendors
 @app.route('/api/vendors', methods=['GET'])
@@ -374,10 +442,15 @@ def api_add_vendor():
         phone_number=phone_number,
         is_overseas=is_overseas
     )
-    db.session.add(new_vendor)
-    db.session.commit()
-
-    return jsonify({'success': True, 'message': 'Vendor added successfully', 'id': new_vendor.id})
+    try:
+        db.session.add(new_vendor)
+        db.session.commit()
+        logger.info(f"Vendor added successfully: {vendor_name} by user {current_user.username}")
+        return jsonify({'success': True, 'message': 'Vendor added successfully', 'id': new_vendor.id})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to add Vendor {vendor_name}: {str(e)}\n")
+        return jsonify({'success': False, 'message': 'Database error occurred while adding Vendor'}), 500
 
 # API: Product Detail
 @app.route('/api/inventory/products/<path:sku>', methods=['GET'])
@@ -573,8 +646,14 @@ def api_confirm_order(order_id):
     # Set ETA mock
     order.ets_date = datetime.utcnow() + timedelta(days=order.product_vendor.lead_time_days or 14)
 
-    db.session.commit()
-    return jsonify({'success': True, 'message': 'Order confirmed successfully'})
+    try:
+        db.session.commit()
+        logger.info(f"Order confirmed successfully: ID {order_id} by user {current_user.username}")
+        return jsonify({'success': True, 'message': 'Order confirmed successfully'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to confirm Order ID {order_id}: {str(e)}\n")
+        return jsonify({'success': False, 'message': 'Database error occurred while confirming Order'}), 500
 
 # API: Get Locations
 @app.route('/api/forecast/locations', methods=['GET'])
@@ -737,10 +816,15 @@ def api_sales():
         customer_name=customer_name,
         sold_by=current_user.id
     )
-    db.session.add(sale)
-    db.session.commit()
-
-    return jsonify({'success': True, 'message': 'Sale added successfully', 'sale_id': sale.id})
+    try:
+        db.session.add(sale)
+        db.session.commit()
+        logger.info(f"Sale added successfully: PL ID {pl_id}, Qty {quantity_sold} by user {current_user.username}")
+        return jsonify({'success': True, 'message': 'Sale added successfully', 'sale_id': sale.id})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to add Sale for PL ID {pl_id}: {str(e)}\n")
+        return jsonify({'success': False, 'message': 'Database error occurred while adding Sale'}), 500
 
 
 @app.route('/api/invoices', methods=['GET', 'POST'])
@@ -777,10 +861,15 @@ def api_invoices():
         invoice_number=invoice_number,
         total_amount=float(total_amount)
     )
-    db.session.add(invoice)
-    db.session.commit()
-
-    return jsonify({'success': True, 'message': 'Invoice generated successfully', 'invoice_id': invoice.id})
+    try:
+        db.session.add(invoice)
+        db.session.commit()
+        logger.info(f"Invoice generated successfully: Sale ID {sale_id}, Invoice Number {invoice_number} by user {current_user.username}")
+        return jsonify({'success': True, 'message': 'Invoice generated successfully', 'invoice_id': invoice.id})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to generate Invoice for Sale ID {sale_id}: {str(e)}\n")
+        return jsonify({'success': False, 'message': 'Database error occurred while generating Invoice'}), 500
 
 
 # API: Assign Location (Manager Only)
@@ -811,10 +900,15 @@ def api_assign_location():
         uid=uid,
         location_id=location_id
     )
-    db.session.add(user_location)
-    db.session.commit()
-
-    return jsonify({'success': True, 'message': 'Location assigned to user successfully', 'ul_id': user_location.ul_id})
+    try:
+        db.session.add(user_location)
+        db.session.commit()
+        logger.info(f"Location {location_id} assigned to user {uid} successfully by user {current_user.username}")
+        return jsonify({'success': True, 'message': 'Location assigned to user successfully', 'ul_id': user_location.ul_id})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to assign Location {location_id} to User {uid}: {str(e)}\n")
+        return jsonify({'success': False, 'message': 'Database error occurred while assigning Location'}), 500
 
 
 # Serve React App for all other routes
