@@ -14,18 +14,26 @@ import {
   Badge,
   Button,
 } from "@tremor/react";
-import { Plus, X, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, X, ChevronRight, ChevronDown, Search, ExternalLink } from 'lucide-react';
 import axios from 'axios';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 
 const InventoryList = () => {
   const role = localStorage.getItem('userRole') || 'Staff';
 
+  // Global Products State
   const [products, setProducts] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedProductIds, setExpandedProductIds] = useState(new Set());
   const [locationsData, setLocationsData] = useState({}); // productId -> locations array
+
+  // Location-Oriented State
+  const [userLocations, setUserLocations] = useState([]);
+  const [selectedLocationId, setSelectedLocationId] = useState('');
+  const [locationProducts, setLocationProducts] = useState([]);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   const [newProduct, setNewProduct] = useState({
     model_code: '',
@@ -36,20 +44,48 @@ const InventoryList = () => {
   });
   const navigate = useNavigate();
 
-  const fetchInventory = async () => {
+  const fetchInitialData = async () => {
+    setLoading(true);
     try {
-      const response = await axios.get('/api/inventory');
-      setProducts(response.data);
-      setLoading(false);
+      // Fetch both user locations and all products
+      const [locationsRes, productsRes] = await Promise.all([
+        axios.get('/api/locations'),
+        axios.get('/api/inventory')
+      ]);
+
+      setUserLocations(locationsRes.data);
+      setProducts(productsRes.data);
+
+      // Select the first location by default if available
+      if (locationsRes.data.length > 0) {
+        setSelectedLocationId(locationsRes.data[0].id.toString());
+      }
     } catch (error) {
-      console.error("Error fetching inventory", error);
+      console.error("Error fetching initial data", error);
+    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchInventory();
+    fetchInitialData();
   }, []);
+
+  useEffect(() => {
+    const fetchLocationProducts = async () => {
+      if (!selectedLocationId) return;
+      setLocationLoading(true);
+      try {
+        const response = await axios.get(`/api/inventory/location/${selectedLocationId}`);
+        setLocationProducts(response.data);
+      } catch (error) {
+        console.error("Error fetching location products", error);
+      } finally {
+        setLocationLoading(false);
+      }
+    };
+    fetchLocationProducts();
+  }, [selectedLocationId]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -71,7 +107,7 @@ const InventoryList = () => {
         brand: '',
         status: 'Active'
       });
-      fetchInventory();
+      fetchInitialData();
     } catch (error) {
       console.error("Error adding product", error);
       alert("Failed to add product (ensure Model Code is unique)");
@@ -113,17 +149,126 @@ const InventoryList = () => {
       }
   };
 
+  const selectedLocationDetails = userLocations.find(l => l.id.toString() === selectedLocationId);
+  const filteredProducts = products.filter(p =>
+    p.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.sku_id.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <Layout>
-      <Card>
-        <div className="flex justify-between items-center">
-            <div>
-                <Title>Inventory Overview</Title>
-                <Text>A list of all products and their current stock status.</Text>
-            </div>
-            {role === 'Manager' && (
-                <Button icon={Plus} onClick={() => setIsModalOpen(true)}>Add Product</Button>
+      {/* Top Section: Location-Oriented View */}
+      <Card className="mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div>
+            <Title>Location Inventory</Title>
+            <Text>Select a location to view its specific inventory.</Text>
+          </div>
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <select
+              value={selectedLocationId}
+              onChange={(e) => setSelectedLocationId(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+            >
+              {userLocations.map(loc => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.loc_code} - {loc.description}
+                </option>
+              ))}
+            </select>
+            {selectedLocationDetails && (
+              <Button
+                icon={ExternalLink}
+                variant="secondary"
+                onClick={() => navigate(`/inventory/warehouse?location=${selectedLocationDetails.id}`)}
+              >
+                Manage Warehouse
+              </Button>
             )}
+          </div>
+        </div>
+
+        {selectedLocationDetails && (
+          <div className="bg-gray-50 p-4 rounded-md mb-6 border border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <span className="block text-sm font-medium text-gray-500">Address</span>
+                <span className="block text-sm text-gray-900 mt-1">{selectedLocationDetails.address || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="block text-sm font-medium text-gray-500">Region</span>
+                <span className="block text-sm text-gray-900 mt-1">{selectedLocationDetails.region || 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {locationLoading ? (
+          <div className="mt-6 text-center">Loading Location Products...</div>
+        ) : (
+          <Table className="mt-4">
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>Model / SKU</TableHeaderCell>
+                <TableHeaderCell>Product Name</TableHeaderCell>
+                <TableHeaderCell>Location Stock</TableHeaderCell>
+                <TableHeaderCell>AMS (3-Month)</TableHeaderCell>
+                <TableHeaderCell>Status</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {locationProducts.length > 0 ? (
+                locationProducts.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell className="font-medium text-gray-900">
+                      {product.sku_id}
+                    </TableCell>
+                    <TableCell>{product.product_name}</TableCell>
+                    <TableCell>{product.quantity}</TableCell>
+                    <TableCell>{product.ams_3m}</TableCell>
+                    <TableCell>
+                      <Badge color={getStatusColor(product.status)}>
+                        {product.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-gray-500 py-4">
+                    No products found in this location.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      {/* Bottom Section: All Products Overview */}
+      <Card>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+            <div>
+                <Title>All Products Overview</Title>
+                <Text>A consolidated view of all products across all locations.</Text>
+            </div>
+            <div className="flex items-center gap-4 w-full md:w-auto">
+                <div className="relative w-full md:w-64">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <input
+                        type="text"
+                        placeholder="Search products..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    />
+                </div>
+                {role === 'Manager' && (
+                    <Button icon={Plus} onClick={() => setIsModalOpen(true)}>Add Product</Button>
+                )}
+            </div>
         </div>
 
         {loading ? (
@@ -141,7 +286,7 @@ const InventoryList = () => {
                 </TableRow>
             </TableHead>
             <TableBody>
-                {products.map((product) => {
+                {filteredProducts.map((product) => {
                     const isExpanded = expandedProductIds.has(product.id);
                     return (
                         <Fragment key={product.id}>

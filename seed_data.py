@@ -25,12 +25,12 @@ def seed_database():
 
         print("Seeding Locations...")
         locations = [
-            Location(loc_code='WH-MAIN', description='Main Warehouse', type='Physical Warehouse'),
-            Location(loc_code='WH-REWORK', description='Rework Area', type='Physical Warehouse'),
-            Location(loc_code='CH-LAZADA', description='Lazada Online Store', type='Online Channel'),
-            Location(loc_code='CH-SHOPEE', description='Shopee Online Store', type='Online Channel'),
-            Location(loc_code='CH-TIKTOK', description='TikTok Shop', type='Online Channel'),
-            Location(loc_code='CH-ESTORE', description='Direct E-Store', type='Online Channel')
+            Location(loc_code='WH-MAIN', description='Main Warehouse', type='Physical Warehouse', address='123 Main Industrial Park', region='West Malaysia'),
+            Location(loc_code='WH-REWORK', description='Rework Area', type='Physical Warehouse', address='123 Main Industrial Park, Block B', region='West Malaysia'),
+            Location(loc_code='CH-LAZADA', description='Lazada Online Store', type='Online Channel', address='Virtual Hub - Lazada', region='All Malaysia'),
+            Location(loc_code='CH-SHOPEE', description='Shopee Online Store', type='Online Channel', address='Virtual Hub - Shopee', region='All Malaysia'),
+            Location(loc_code='CH-TIKTOK', description='TikTok Shop', type='Online Channel', address='Virtual Hub - TikTok', region='All Malaysia'),
+            Location(loc_code='CH-ESTORE', description='Direct E-Store', type='Online Channel', address='HQ Server Room', region='All Malaysia')
         ]
         db.session.add_all(locations)
         db.session.commit()

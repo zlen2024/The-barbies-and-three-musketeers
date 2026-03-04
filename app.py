@@ -530,6 +530,41 @@ def api_product_detail(sku):
 
     return jsonify(data)
 
+# API: Get Products for a Specific Location (for inventory location view)
+@app.route('/api/inventory/location/<int:location_id>', methods=['GET'])
+@login_required
+def api_inventory_location(location_id):
+    location = Location.query.get(location_id)
+    if not location:
+        return jsonify({'error': 'Location not found'}), 404
+
+    # Get all product_loc records for this location
+    product_locs = ProductLoc.query.filter_by(location_id=location_id).all()
+
+    products_data = []
+    for pl in product_locs:
+        product = pl.product
+
+        # Calculate AMS (Average Monthly Sales) for this product
+        # NOTE: Ideally AMS would be location-specific, but the existing _calculate_ams
+        # calculates globally. We'll use the global one for consistency or just omit.
+        # For now, using global AMS.
+        ams = _calculate_ams(product.id, 90)
+
+        products_data.append({
+            'id': product.id,
+            'sku_id': product.model_code,
+            'product_name': product.product_name,
+            'category': product.category,
+            'brand': product.brand,
+            'status': product.status,
+            'quantity': pl.quantity_on_hand,
+            'ams_3m': ams,
+        })
+
+    return jsonify(products_data)
+
+
 # API: Get Locations for Product (for inventory expanded row)
 @app.route('/api/inventory/<int:product_id>/locations', methods=['GET'])
 @login_required
@@ -665,6 +700,27 @@ def api_forecast_locations():
         'loc_code': loc.loc_code,
         'description': loc.description,
         'type': loc.type
+    } for loc in locations]
+    return jsonify(location_list)
+
+# API: Get Locations for User
+@app.route('/api/locations', methods=['GET'])
+@login_required
+def api_locations():
+    # If manager or admin, return all, otherwise return assigned
+    if current_user.role in ['Manager', 'Admin']:
+        locations = Location.query.all()
+    else:
+        user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
+        locations = [ul.location for ul in user_locs]
+
+    location_list = [{
+        'id': loc.id,
+        'loc_code': loc.loc_code,
+        'description': loc.description,
+        'type': loc.type,
+        'address': loc.address,
+        'region': loc.region
     } for loc in locations]
     return jsonify(location_list)
 
