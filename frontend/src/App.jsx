@@ -4,6 +4,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import InventoryList from './components/InventoryList';
 import ProductDetail from './components/ProductDetail';
+import ProductForecast from './components/ProductForecast';
 import Suppliers from './components/Suppliers';
 import Orders from './components/Orders';
 import OrderDetail from './components/OrderDetail';
@@ -47,6 +48,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ProductDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/forecast/:sku"
+          element={
+            <ProtectedRoute>
+              <ProductForecast />
             </ProtectedRoute>
           }
         />
