@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Fragment } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import {
   Card,
@@ -40,6 +40,7 @@ const valueFormatter = (number) => `${new Intl.NumberFormat("us").format(number)
 
 const ProductDetail = () => {
   const { sku } = useParams();
+  const navigate = useNavigate();
   const [productData, setProductData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chatMessage, setChatMessage] = useState('');
@@ -87,6 +88,15 @@ const ProductDetail = () => {
   }
 
   const { product, stock_health, velocity, incoming, analytics, orders, locations, vendors, pricing } = productData;
+
+  // Combine locations and analytics.distribution
+  const stockAndSalesData = locations?.map(loc => {
+    const saleData = analytics.distribution.find(d => d.name === loc.location);
+    return [
+      { name: `${loc.location} - Stock`, value: loc.quantity, color: "blue" },
+      { name: `${loc.location} - Sales`, value: saleData ? saleData.value : 0, color: "emerald" }
+    ];
+  }).flat() || [];
 
   const handleOpenPOModal = () => {
       setIsPOModalOpen(true);
@@ -282,32 +292,15 @@ InventoryAI System`;
                     </div>
                  </Card>
 
-                 {/* Location Breakdown */}
+                 {/* Stock & Sales Distribution */}
                  <Card>
-                     <Title>Location Breakdown</Title>
-                     <Text>Stock distribution across warehouses and channels.</Text>
-                     <Table className="mt-4">
-                        <TableHead>
-                            <TableRow>
-                                <TableHeaderCell>Location</TableHeaderCell>
-                                <TableHeaderCell>Type</TableHeaderCell>
-                                <TableHeaderCell className="text-right">Quantity</TableHeaderCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {locations?.map((loc, i) => (
-                                <TableRow key={i}>
-                                    <TableCell>{loc.location}</TableCell>
-                                    <TableCell>
-                                        <Badge size="xs" color={loc.type === 'Physical Warehouse' ? 'blue' : 'purple'}>
-                                            {loc.type === 'Physical Warehouse' ? 'Warehouse' : 'Channel'}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono font-bold">{loc.quantity}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                     </Table>
+                     <Title>Stock & Sales Distribution</Title>
+                     <Text>Stock and sales channel breakdown.</Text>
+                     <BarList
+                         data={stockAndSalesData}
+                         className="mt-4"
+                         valueFormatter={valueFormatter}
+                     />
                  </Card>
             </div>
 
@@ -315,7 +308,7 @@ InventoryAI System`;
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
                 {/* Coverage Gauge */}
-                <Card className="flex flex-col items-center justify-center">
+                <Card className="flex flex-col items-center justify-center col-span-1">
                     <Title className="w-full text-left">Coverage</Title>
                     <div className="relative mt-4">
                         <DonutChart
@@ -337,20 +330,12 @@ InventoryAI System`;
                     </div>
                 </Card>
 
-                {/* Distribution */}
-                <Card>
-                    <Title>Distribution</Title>
-                    <Text>Sales Channel Breakdown</Text>
-                    <BarList
-                        data={analytics.distribution}
-                        className="mt-4"
-                        color="blue"
-                    />
-                </Card>
-
                 {/* Sales Trend */}
-                <Card>
-                    <Title>Sales Trend</Title>
+                <Card className="col-span-1 md:col-span-2 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/forecast/${product.sku}`)}>
+                    <div className="flex justify-between items-center">
+                        <Title>Sales Trend</Title>
+                        <Text className="text-xs text-indigo-600 flex items-center">Click for Analysis <ArrowRight className="h-3 w-3 ml-1"/></Text>
+                    </div>
                     <LineChart
                         className="mt-4 h-40"
                         data={analytics.sales_trend}
