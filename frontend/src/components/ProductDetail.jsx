@@ -44,15 +44,39 @@ const ProductDetail = () => {
   const [productData, setProductData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chatMessage, setChatMessage] = useState('');
+  const [userRole, setUserRole] = useState(localStorage.getItem('userRole') || '');
 
   // PO Modal State
   const [isPOModalOpen, setIsPOModalOpen] = useState(false);
   const [poQuantity, setPoQuantity] = useState(100);
   const [poVendorId, setPoVendorId] = useState('');
+  const [poUlId, setPoUlId] = useState('');
+  const [myLocations, setMyLocations] = useState([]);
   const [emailPreview, setEmailPreview] = useState('');
   const [isSending, setIsSending] = useState(false);
 
+  // Sales Modal State
+  const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
+  const [saleData, setSaleData] = useState({ location_id: '', quantity: 1, customer_name: '' });
+  const [isAddingSale, setIsAddingSale] = useState(false);
+
   useEffect(() => {
+    const fetchLocations = async () => {
+        try {
+            const res = await axios.get('/api/my-locations');
+            setMyLocations(res.data);
+            if (res.data.length > 0) {
+                setPoUlId(res.data[0].ul_id);
+                setSaleData(prev => ({...prev, location_id: res.data[0].location_id}));
+            }
+        } catch (error) {
+            console.error("Error fetching locations", error);
+        }
+    };
+    if (userRole === 'Warehouse' || userRole === 'Admin' || userRole === 'Sales') {
+        fetchLocations();
+    }
+
     const fetchProductDetail = async () => {
       try {
         const response = await axios.get(`/api/inventory/products/${sku}`);
@@ -124,13 +148,47 @@ InventoryAI System`;
       setEmailPreview(emailText);
   };
 
+  const handleAddSale = async () => {
+      if (!saleData.location_id) {
+          alert("Please select a location.");
+          return;
+      }
+      setIsAddingSale(true);
+      try {
+          const res = await axios.post('/api/sales', {
+              product_id: product.id,
+              location_id: saleData.location_id,
+              quantity: saleData.quantity,
+              customer_name: saleData.customer_name
+          });
+
+          if (window.confirm("Sale added successfully! Would you like to generate an invoice now?")) {
+              await axios.post('/api/invoices', { sale_id: res.data.id });
+              alert("Invoice generated!");
+          }
+
+          setIsSaleModalOpen(false);
+          // Simple reload to fetch new stock level
+          window.location.reload();
+      } catch (e) {
+          alert("Error adding sale: " + (e.response?.data?.message || e.message));
+      } finally {
+          setIsAddingSale(false);
+      }
+  };
+
   const handleSubmitPO = async () => {
+      if (!poUlId) {
+          alert("Please select a location for this order.");
+          return;
+      }
       setIsSending(true);
       try {
           await axios.post('/api/generate-pr', {
               sku_id: product.sku,
               quantity: poQuantity,
-              vendor_id: poVendorId
+              vendor_id: poVendorId,
+              ul_id: poUlId
           });
           alert("PR Created Successfully!");
           setIsPOModalOpen(false);
@@ -175,10 +233,17 @@ InventoryAI System`;
                              </Badge>
                         </div>
                     </div>
-                    <div className="mt-4 sm:mt-0">
-                        <Button icon={ShoppingCart} size="lg" color="blue" onClick={handleOpenPOModal}>
-                            Create PO
-                        </Button>
+                    <div className="mt-4 sm:mt-0 flex gap-2">
+                        {(userRole === 'Sales' || userRole === 'Admin') && (
+                            <Button size="lg" color="emerald" onClick={() => setIsSaleModalOpen(true)}>
+                                Add Sale
+                            </Button>
+                        )}
+                        {(userRole === 'Warehouse' || userRole === 'Admin') && (
+                            <Button icon={ShoppingCart} size="lg" color="blue" onClick={handleOpenPOModal}>
+                                Create PO
+                            </Button>
+                        )}
                     </div>
                 </div>
             </Card>
@@ -431,6 +496,104 @@ InventoryAI System`;
 
       </div>
 
+      {/* ADD SALE MODAL */}
+      <Transition show={isSaleModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setIsSaleModalOpen(false)}>
+          <TransitionChild
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/30" />
+          </TransitionChild>
+
+          <div className="fixed inset-0 w-screen overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <TransitionChild
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                  <div className="flex justify-between items-center mb-4">
+                    <DialogTitle as="h3" className="text-lg font-medium leading-6 text-gray-900">
+                      Record New Sale
+                    </DialogTitle>
+                    <button onClick={() => setIsSaleModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Location</label>
+                          <select
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                            value={saleData.location_id}
+                            onChange={(e) => setSaleData({...saleData, location_id: e.target.value})}
+                          >
+                              {myLocations?.map(loc => (
+                                  <option key={loc.location_id} value={loc.location_id}>{loc.location_name} ({loc.loc_code})</option>
+                              ))}
+                              {myLocations.length === 0 && <option value="">No locations assigned</option>}
+                          </select>
+                      </div>
+
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Quantity</label>
+                          <input
+                            type="number"
+                            min="1"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                            value={saleData.quantity}
+                            onChange={(e) => setSaleData({...saleData, quantity: e.target.value})}
+                          />
+                      </div>
+
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Customer Name</label>
+                          <input
+                            type="text"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                            value={saleData.customer_name}
+                            onChange={(e) => setSaleData({...saleData, customer_name: e.target.value})}
+                          />
+                      </div>
+
+                      <div className="mt-6 flex justify-end space-x-3">
+                          <button
+                            type="button"
+                            onClick={() => setIsSaleModalOpen(false)}
+                            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddSale}
+                            disabled={isAddingSale}
+                            className="inline-flex justify-center rounded-md border border-transparent bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 focus:outline-none"
+                          >
+                            {isAddingSale ? 'Recording...' : 'Record Sale & Gen Invoice'}
+                          </button>
+                      </div>
+                  </div>
+
+                </DialogPanel>
+              </TransitionChild>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+
       {/* CREATE PO MODAL */}
       <Transition show={isPOModalOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50" onClose={() => setIsPOModalOpen(false)}>
@@ -468,6 +631,20 @@ InventoryAI System`;
                   </div>
 
                   <div className="space-y-4">
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Order For Location</label>
+                          <select
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                            value={poUlId}
+                            onChange={(e) => setPoUlId(e.target.value)}
+                          >
+                              {myLocations?.map(loc => (
+                                  <option key={loc.ul_id} value={loc.ul_id}>{loc.location_name} ({loc.loc_code})</option>
+                              ))}
+                              {myLocations.length === 0 && <option value="">No locations assigned</option>}
+                          </select>
+                      </div>
+
                       <div>
                           <label className="block text-sm font-medium text-gray-700">Vendor</label>
                           <select

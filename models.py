@@ -8,6 +8,9 @@ db = SQLAlchemy()
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column('user_id', db.Integer, primary_key=True)
+
+    # Relationships
+    user_locations = db.relationship('UserLocation', backref='user', lazy=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     role = db.Column(db.String(50), nullable=False)  # 'Admin', 'Warehouse', 'Sales', 'Manager'
     password_hash = db.Column(db.String(200), nullable=False)
@@ -49,9 +52,22 @@ class Location(db.Model):
 
     # Relationships
     product_locs = db.relationship('ProductLoc', backref='location', lazy=True)
+    user_locations = db.relationship('UserLocation', backref='location', lazy=True)
 
     def __repr__(self):
         return f'<Location {self.loc_code}>'
+
+class UserLocation(db.Model):
+    __tablename__ = 'user_location'
+    id = db.Column('ul_id', db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    location_id = db.Column(db.Integer, db.ForeignKey('location.location_id'), nullable=False)
+
+    # Relationships
+    orders = db.relationship('ProductOrder', backref='user_location', lazy=True)
+
+    def __repr__(self):
+        return f'<UserLocation U:{self.user_id} L:{self.location_id}>'
 
 class ProductLoc(db.Model):
     __tablename__ = 'product_loc'
@@ -100,6 +116,7 @@ class ProductOrder(db.Model):
     __tablename__ = 'product_order'
     id = db.Column('order_id', db.Integer, primary_key=True)
     pv_id = db.Column(db.Integer, db.ForeignKey('product_vendor.pv_id'), nullable=False)
+    ul_id = db.Column(db.Integer, db.ForeignKey('user_location.ul_id')) # Added to track location of the order creator
     po_reference = db.Column(db.String(50)) # e.g., FT2733, can be null for PRs
     order_qty = db.Column(db.Integer, nullable=False)
     ets_date = db.Column(db.DateTime) # Estimated Time of Arrival
@@ -147,8 +164,22 @@ class Sale(db.Model):
     customer_name = db.Column(db.String(200))
     sold_by = db.Column(db.Integer, db.ForeignKey('users.user_id'))
 
+    # Relationships
+    invoice = db.relationship('Invoice', backref='sale', uselist=False, lazy=True)
+
     def __repr__(self):
         return f'<Sale {self.id} Qty:{self.quantity_sold}>'
+
+class Invoice(db.Model):
+    __tablename__ = 'invoice'
+    id = db.Column('invoice_id', db.Integer, primary_key=True)
+    sale_id = db.Column(db.Integer, db.ForeignKey('sale.sale_id'), nullable=False)
+    invoice_number = db.Column(db.String(100), unique=True, nullable=False)
+    generated_date = db.Column(db.DateTime, default=datetime.utcnow)
+    total_amount = db.Column(db.Float, nullable=False)
+
+    def __repr__(self):
+        return f'<Invoice {self.invoice_number}>'
 
 # 5. Forecast (Optional/Legacy but good to keep for "AI" features if needed)
 # I will keep a simplified version linked to Product for the dashboard AI features

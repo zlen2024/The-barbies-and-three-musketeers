@@ -28,6 +28,7 @@ const Suppliers = () => {
     phone_number: '',
     is_overseas: false
   });
+  const userRole = localStorage.getItem('userRole');
 
   const fetchVendors = async () => {
     try {
@@ -77,9 +78,11 @@ const Suppliers = () => {
           <Title>Suppliers</Title>
           <Text>Manage your vendors and suppliers.</Text>
         </div>
-        <Button icon={Plus} onClick={() => setIsModalOpen(true)}>
-          Add Vendor
-        </Button>
+        {(userRole === 'Manager' || userRole === 'Admin') && (
+            <Button icon={Plus} onClick={() => setIsModalOpen(true)}>
+            Add Vendor
+            </Button>
+        )}
       </div>
 
       <Card>

@@ -33,6 +33,7 @@ const InventoryList = () => {
     status: 'Active'
   });
   const navigate = useNavigate();
+  const userRole = localStorage.getItem('userRole');
 
   const fetchInventory = async () => {
     try {
@@ -119,7 +120,9 @@ const InventoryList = () => {
                 <Title>Inventory Overview</Title>
                 <Text>A list of all products and their current stock status.</Text>
             </div>
-            <Button icon={Plus} onClick={() => setIsModalOpen(true)}>Add Product</Button>
+            {(userRole === 'Manager' || userRole === 'Admin') && (
+                <Button icon={Plus} onClick={() => setIsModalOpen(true)}>Add Product</Button>
+            )}
         </div>
 
         {loading ? (

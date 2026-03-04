@@ -2,8 +2,9 @@ import os
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
+from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast
+from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast, UserLocation, Invoice
 
 # Configure Flask to serve React build files
 app = Flask(__name__, static_folder='frontend/dist')
@@ -22,6 +23,19 @@ def load_user(user_id):
 @login_manager.unauthorized_handler
 def unauthorized():
     return jsonify({'error': 'Unauthorized'}), 401
+
+# Role-based access control decorator
+def role_required(role_name):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return jsonify({'error': 'Unauthorized'}), 401
+            if current_user.role != role_name and current_user.role != 'Admin':
+                return jsonify({'error': 'Forbidden - Insufficient permissions'}), 403
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 # API: Login
 @app.route('/api/login', methods=['POST'])
@@ -146,11 +160,41 @@ def api_dashboard():
     }
     return jsonify(data)
 
-# API: Generate PR
+# API: Get Current User's Assigned Locations
+@app.route('/api/my-locations', methods=['GET'])
+@login_required
+def api_my_locations():
+    # Admins can see all, or we just return the ones explicitly assigned
+    user_locations = UserLocation.query.filter_by(user_id=current_user.id).all()
+    locations = []
+    for ul in user_locations:
+        loc = Location.query.get(ul.location_id)
+        if loc:
+            locations.append({
+                'ul_id': ul.id,
+                'location_id': loc.id,
+                'location_name': loc.description,
+                'loc_code': loc.loc_code
+            })
+    return jsonify(locations)
+
+# API: Generate PR (Product Order)
 @app.route('/api/generate-pr', methods=['POST'])
 @login_required
+@role_required('Warehouse')
 def api_generate_pr():
     data = request.json
+
+    # User must provide a specific user_location ID (ul_id) that they want to order for
+    ul_id = data.get('ul_id')
+    if not ul_id:
+        return jsonify({'success': False, 'message': 'User Location ID (ul_id) is required. Please select a location.'}), 400
+
+    # Verify the user actually has this user_location
+    user_loc = UserLocation.query.filter_by(id=ul_id, user_id=current_user.id).first()
+    if not user_loc:
+        return jsonify({'success': False, 'message': 'You are not assigned to the selected location.'}), 403
+
     sku_id = data.get('sku_id', 'SKU-123')
     quantity = data.get('quantity', 100)
 
@@ -174,6 +218,7 @@ def api_generate_pr():
 
         pr = ProductOrder(
             pv_id=pv.id,
+            ul_id=user_loc.id,
             order_qty=int(quantity),
             status='Pending',
             confirmation_status='Pending', # Acts as PR
@@ -224,6 +269,7 @@ def api_inventory():
 # API: Add Product
 @app.route('/api/products', methods=['POST'])
 @login_required
+@role_required('Manager')
 def api_add_product():
     data = request.json
     model_code = data.get('model_code')
@@ -268,6 +314,7 @@ def api_get_vendors():
 # API: Add Vendor
 @app.route('/api/vendors', methods=['POST'])
 @login_required
+@role_required('Manager')
 def api_add_vendor():
     data = request.json
     vendor_name = data.get('vendor_name')
@@ -288,6 +335,116 @@ def api_add_vendor():
     db.session.commit()
 
     return jsonify({'success': True, 'message': 'Vendor added successfully', 'id': new_vendor.id})
+
+# API: Assign Location
+@app.route('/api/assign-location', methods=['POST'])
+@login_required
+@role_required('Manager')
+def api_assign_location():
+    data = request.json
+    user_id = data.get('user_id')
+    location_id = data.get('location_id')
+
+    if not user_id or not location_id:
+        return jsonify({'success': False, 'message': 'User ID and Location ID are required'}), 400
+
+    existing_assignment = UserLocation.query.filter_by(user_id=user_id, location_id=location_id).first()
+    if existing_assignment:
+        return jsonify({'success': False, 'message': 'User is already assigned to this location'}), 400
+
+    new_assignment = UserLocation(user_id=user_id, location_id=location_id)
+    db.session.add(new_assignment)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Location assigned successfully', 'id': new_assignment.id})
+
+# API: Get All Locations (For Managers assigning)
+@app.route('/api/all-locations', methods=['GET'])
+@login_required
+@role_required('Manager')
+def api_all_locations():
+    locations = Location.query.all()
+    loc_list = [{'id': l.id, 'description': l.description, 'loc_code': l.loc_code} for l in locations]
+    return jsonify(loc_list)
+
+# API: Get All Users (For Managers assigning)
+@app.route('/api/all-users', methods=['GET'])
+@login_required
+@role_required('Manager')
+def api_all_users():
+    users = User.query.all()
+    user_list = [{'id': u.id, 'username': u.username, 'role': u.role} for u in users]
+    return jsonify(user_list)
+
+# API: Add Sale
+@app.route('/api/sales', methods=['POST'])
+@login_required
+@role_required('Sales')
+def api_add_sale():
+    data = request.json
+    product_id = data.get('product_id')
+    location_id = data.get('location_id')
+    quantity = data.get('quantity')
+    customer_name = data.get('customer_name')
+
+    if not all([product_id, location_id, quantity]):
+        return jsonify({'success': False, 'message': 'Product ID, Location ID, and Quantity are required'}), 400
+
+    # Find the ProductLoc
+    pl = ProductLoc.query.filter_by(product_id=product_id, location_id=location_id).first()
+    if not pl:
+        return jsonify({'success': False, 'message': 'Product not found at the specified location'}), 400
+
+    if pl.quantity_on_hand < int(quantity):
+        return jsonify({'success': False, 'message': 'Insufficient stock at the specified location'}), 400
+
+    # Deduct stock
+    pl.quantity_on_hand -= int(quantity)
+
+    new_sale = Sale(
+        pl_id=pl.id,
+        quantity_sold=int(quantity),
+        customer_name=customer_name,
+        sold_by=current_user.id
+    )
+    db.session.add(new_sale)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Sale added successfully', 'id': new_sale.id})
+
+# API: Generate Invoice
+@app.route('/api/invoices', methods=['POST'])
+@login_required
+@role_required('Sales')
+def api_generate_invoice():
+    data = request.json
+    sale_id = data.get('sale_id')
+
+    if not sale_id:
+        return jsonify({'success': False, 'message': 'Sale ID is required'}), 400
+
+    sale = Sale.query.get(sale_id)
+    if not sale:
+        return jsonify({'success': False, 'message': 'Sale not found'}), 404
+
+    # Check if invoice already exists
+    if sale.invoice:
+        return jsonify({'success': False, 'message': 'Invoice already exists for this sale'}), 400
+
+    # Calculate total amount (mock logic assuming LSP price)
+    pricing = Pricing.query.filter_by(product_id=sale.product_loc.product_id).first()
+    price = pricing.lsp_price if pricing else 100 # Fallback
+    total_amount = sale.quantity_sold * price
+
+    new_invoice = Invoice(
+        sale_id=sale.id,
+        invoice_number=f"INV-{datetime.utcnow().strftime('%Y')}-{sale.id + 10000}",
+        total_amount=total_amount
+    )
+    db.session.add(new_invoice)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Invoice generated successfully', 'invoice_number': new_invoice.invoice_number})
 
 # API: Product Detail
 @app.route('/api/inventory/products/<path:sku>', methods=['GET'])
