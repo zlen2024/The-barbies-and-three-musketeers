@@ -209,6 +209,74 @@ def api_generate_pr():
 
     return jsonify({'success': False, 'message': 'Product not found'}), 404
 
+# Helper functions for calculations
+def _calculate_ams(product_id, days):
+    cutoff = datetime.now() - timedelta(days=days)
+    total_sales = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
+        ProductLoc.product_id == product_id,
+        Sale.sale_date >= cutoff
+    ).scalar() or 0
+    return round(total_sales / (days / 30), 1)
+
+def _get_sales_distribution(product_id):
+    sales_channels = db.session.query(
+        Location.description,
+        db.func.sum(Sale.quantity_sold)
+    ).join(ProductLoc, ProductLoc.location_id == Location.id).join(Sale, Sale.pl_id == ProductLoc.id).filter(
+        ProductLoc.product_id == product_id
+    ).group_by(Location.description).all()
+
+    return [{'name': channel, 'value': quantity} for channel, quantity in sales_channels]
+
+def _get_monthly_sales_trend(product_id):
+    sales_trend = []
+    today = datetime.now()
+    for i in range(5, -1, -1):
+        month_start = (today - timedelta(days=30*i)).replace(day=1)
+        if today.month == 12 and i == 0:
+             month_end = datetime(today.year + 1, 1, 1)
+        elif i == 0:
+             if today.month == 12:
+                 month_end = datetime(today.year + 1, 1, 1)
+             else:
+                 month_end = datetime(today.year, today.month + 1, 1)
+        else:
+             month_end = month_start + timedelta(days=30)
+
+        monthly_sales = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
+            ProductLoc.product_id == product_id,
+            Sale.sale_date >= month_start,
+            Sale.sale_date < month_end
+        ).scalar() or 0
+
+        sales_trend.append({
+            'date': month_start.strftime("%b"),
+            'Actual Sales': monthly_sales,
+            'Forecast': monthly_sales * 1.1
+        })
+    return sales_trend
+
+def _get_order_summary(product):
+    orders = db.session.query(ProductOrder).join(ProductVendor).filter(
+        ProductVendor.product_id == product.id
+    ).order_by(ProductOrder.created_at.desc()).all()
+
+    avg_lead_time = 0
+    if product.product_vendors:
+        avg_lead_time = sum([pv.lead_time_days for pv in product.product_vendors]) / len(product.product_vendors)
+
+    pr_data = [{
+        'id': order.id,
+        'quantity': order.order_qty,
+        'status': order.status if order.confirmation_status == 'Confirmed' else 'Pending Approval',
+        'date': order.created_at.strftime("%Y-%m-%d") if order.created_at else '',
+        'eta': order.ets_date.strftime("%Y-%m-%d") if order.ets_date else 'N/A'
+    } for order in orders]
+
+    total_incoming = sum([o.order_qty for o in orders if o.status == 'Ordered'])
+
+    return pr_data, int(avg_lead_time), total_incoming
+
 # API: Inventory List
 @app.route('/api/inventory', methods=['GET'])
 @login_required
@@ -218,12 +286,7 @@ def api_inventory():
 
     for product in products:
         # Calculate AMS (3-Month)
-        cutoff_3m = datetime.now() - timedelta(days=90)
-        total_sales_3m = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
-            ProductLoc.product_id == product.id,
-            Sale.sale_date >= cutoff_3m
-        ).scalar() or 0
-        ams_3m = round(total_sales_3m / 3, 1)
+        ams_3m = _calculate_ams(product.id, 90)
 
         # Status Logic
         stock = product.total_stock
@@ -319,101 +382,28 @@ def api_add_vendor():
 @app.route('/api/inventory/products/<path:sku>', methods=['GET'])
 @login_required
 def api_product_detail(sku):
-    # sku here is model_code
     product = Product.query.filter_by(model_code=sku).first()
     if not product:
         return jsonify({'error': 'Product not found'}), 404
 
-    # Calculate AMS
-    cutoff_3m = datetime.now() - timedelta(days=90)
-    total_sales_3m = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
-        ProductLoc.product_id == product.id,
-        Sale.sale_date >= cutoff_3m
-    ).scalar() or 0
-    ams_3m = round(total_sales_3m / 3, 1)
+    # Calculate velocity and health stats
+    ams_3m = _calculate_ams(product.id, 90)
+    ams_6m = _calculate_ams(product.id, 180)
+    trend_percentage = round(((ams_3m - ams_6m) / ams_6m * 100), 1) if ams_6m > 0 else 0
+    coverage = round(product.total_stock / ams_3m, 1) if ams_3m > 0 else 0
 
-    cutoff_6m = datetime.now() - timedelta(days=180)
-    total_sales_6m = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
-        ProductLoc.product_id == product.id,
-        Sale.sale_date >= cutoff_6m
-    ).scalar() or 0
-    ams_6m = round(total_sales_6m / 6, 1)
+    # Fetch complex data structures via helpers
+    distribution_data = _get_sales_distribution(product.id)
+    sales_trend = _get_monthly_sales_trend(product.id)
+    pr_data, avg_lead_time, total_incoming = _get_order_summary(product)
 
-    # Calculate Trend
-    trend_percentage = 0
-    if ams_6m > 0:
-        trend_percentage = round(((ams_3m - ams_6m) / ams_6m) * 100, 1)
-
-    # Coverage
-    coverage = 0
-    if ams_3m > 0:
-        coverage = round(product.total_stock / ams_3m, 1)
-
-    # Sales Channel Distribution
-    sales_channels = db.session.query(
-        Location.description,
-        db.func.sum(Sale.quantity_sold)
-    ).join(ProductLoc, ProductLoc.location_id == Location.id).join(Sale, Sale.pl_id == ProductLoc.id).filter(
-        ProductLoc.product_id == product.id
-    ).group_by(Location.description).all()
-
-    distribution_data = [{'name': channel, 'value': quantity} for channel, quantity in sales_channels]
-
-    # Sales Trend (Line Chart) - Last 6 months
-    sales_trend = []
-    today = datetime.now()
-    for i in range(5, -1, -1):
-        month_start = (today - timedelta(days=30*i)).replace(day=1)
-        if today.month == 12 and i == 0:
-             month_end = datetime(today.year + 1, 1, 1)
-        elif i == 0:
-             # Logic for current month end is tricky without dateutil, so let's just go to next month start of today
-             # Assuming today is safe
-             if today.month == 12:
-                 month_end = datetime(today.year + 1, 1, 1)
-             else:
-                 month_end = datetime(today.year, today.month + 1, 1)
-        else:
-             month_end = month_start + timedelta(days=30) # Rough approx
-
-        monthly_sales = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
-            ProductLoc.product_id == product.id,
-            Sale.sale_date >= month_start,
-            Sale.sale_date < month_end
-        ).scalar() or 0
-
-        sales_trend.append({
-            'date': month_start.strftime("%b"),
-            'Actual Sales': monthly_sales,
-            'Forecast': monthly_sales * 1.1
-        })
-
-    # Purchase Orders
-    orders = db.session.query(ProductOrder).join(ProductVendor).filter(
-        ProductVendor.product_id == product.id
-    ).order_by(ProductOrder.created_at.desc()).all()
-
-    # Calculate Avg Lead Time
-    avg_lead_time = 0
-    if product.product_vendors:
-        avg_lead_time = sum([pv.lead_time_days for pv in product.product_vendors]) / len(product.product_vendors)
-
-    pr_data = [{
-        'id': order.id,
-        'quantity': order.order_qty,
-        'status': order.status if order.confirmation_status == 'Confirmed' else 'Pending Approval',
-        'date': order.created_at.strftime("%Y-%m-%d") if order.created_at else '',
-        'eta': order.ets_date.strftime("%Y-%m-%d") if order.ets_date else 'N/A'
-    } for order in orders]
-
-    # Location Breakdown
+    # Simple data mappings
     location_stock = [{
         'location': pl.location.description,
         'type': pl.location.type,
         'quantity': pl.quantity_on_hand
     } for pl in product.product_locs]
 
-    # Vendors
     vendor_info = [{
         'id': pv.vendor_id,
         'name': pv.vendor.vendor_name,
@@ -421,18 +411,11 @@ def api_product_detail(sku):
         'lead_time': pv.lead_time_days
     } for pv in product.product_vendors]
 
-    # Pricing
-    pricing_info = {}
-    if product.pricing:
-        p = product.pricing[0]
-        pricing_info = {
-            'lsp': p.lsp_price,
-            'wm': p.wm_price,
-            'em': p.em_price
-        }
-
-    # Incoming Stock
-    total_incoming = sum([o.order_qty for o in orders if o.status == 'Ordered'])
+    pricing_info = {
+        'lsp': product.pricing[0].lsp_price,
+        'wm': product.pricing[0].wm_price,
+        'em': product.pricing[0].em_price
+    } if product.pricing else {}
 
     data = {
         'product': {
@@ -440,7 +423,7 @@ def api_product_detail(sku):
             'sku': product.model_code,
             'category': product.category,
             'status': "In Stock" if product.total_stock > 0 else "Critical",
-            'lead_time': int(avg_lead_time)
+            'lead_time': avg_lead_time
         },
         'stock_health': {
             'total_physical': product.total_stock,
