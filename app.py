@@ -2,6 +2,7 @@ import os
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 from functools import wraps
+from sqlalchemy.orm import joinedload
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast, UserLocation, Invoice
@@ -479,7 +480,10 @@ def api_product_locations(product_id):
 @login_required
 def api_get_orders():
     # Join ProductOrder -> ProductVendor -> Product & Vendor
-    orders = ProductOrder.query.order_by(ProductOrder.created_at.desc()).all()
+    orders = ProductOrder.query.options(
+        joinedload(ProductOrder.product_vendor).joinedload(ProductVendor.product),
+        joinedload(ProductOrder.product_vendor).joinedload(ProductVendor.vendor)
+    ).order_by(ProductOrder.created_at.desc()).all()
 
     order_list = []
     for o in orders:
