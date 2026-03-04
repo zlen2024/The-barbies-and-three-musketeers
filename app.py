@@ -713,10 +713,19 @@ def api_forecast_data():
     return jsonify(chart_data)
 
 # API: Sales Endpoints
-@app.route('/api/sales', methods=['POST'])
+@app.route('/api/sales', methods=['GET', 'POST'])
 @login_required
 @role_required('Sales')
-def api_add_sale():
+def api_sales():
+    if request.method == 'GET':
+        sales = Sale.query.order_by(Sale.sale_date.desc()).all()
+        return jsonify([{
+            'id': sale.id,
+            'customer_name': sale.customer_name,
+            'quantity': sale.quantity_sold,
+            'date': sale.sale_date.strftime('%Y-%m-%d %H:%M:%S')
+        } for sale in sales])
+
     data = request.json
     pl_id = data.get('pl_id')
     quantity_sold = data.get('quantity_sold')
@@ -747,10 +756,19 @@ def api_add_sale():
     return jsonify({'success': True, 'message': 'Sale added successfully', 'sale_id': sale.id})
 
 
-@app.route('/api/invoices', methods=['POST'])
+@app.route('/api/invoices', methods=['GET', 'POST'])
 @login_required
 @role_required('Sales')
-def api_generate_invoice():
+def api_invoices():
+    if request.method == 'GET':
+        invoices = Invoice.query.order_by(Invoice.generated_date.desc()).all()
+        return jsonify([{
+            'id': invoice.id,
+            'invoice_number': invoice.invoice_number,
+            'total_amount': float(invoice.total_amount),
+            'date': invoice.generated_date.strftime('%Y-%m-%d %H:%M:%S')
+        } for invoice in invoices])
+
     data = request.json
     sale_id = data.get('sale_id')
     invoice_number = data.get('invoice_number')
