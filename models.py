@@ -46,6 +46,8 @@ class Location(db.Model):
     loc_code = db.Column(db.String(50), unique=True, nullable=False) # e.g., BR-NM1
     description = db.Column(db.String(200))
     type = db.Column(db.String(50)) # 'Physical Warehouse' or 'Online Channel'
+    address = db.Column(db.String(500))
+    region = db.Column(db.String(100)) # e.g., West Malaysia, East Malaysia, South Malaysia
 
     # Relationships
     product_locs = db.relationship('ProductLoc', backref='location', lazy=True)
