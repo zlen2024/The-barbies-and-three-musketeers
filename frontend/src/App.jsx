@@ -11,6 +11,7 @@ import OrderDetail from './components/OrderDetail';
 import Profile from './components/Profile';
 import SalesHub from './components/SalesHub';
 import TeamManagement from './components/TeamManagement';
+import { ToastContainer } from 'react-toastify';
 import './index.css';
 
 // Simple Protected Route Component
@@ -112,6 +113,7 @@ function App() {
         {/* Redirect unknown routes to Login */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ToastContainer position="bottom-right" />
     </Router>
   );
 }

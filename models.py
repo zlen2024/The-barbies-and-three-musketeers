@@ -78,7 +78,7 @@ class ProductLoc(db.Model):
     updated_by = db.Column(db.Integer, db.ForeignKey('users.user_id'))
 
     # Relationship to sales
-    sales = db.relationship('Sale', backref='product_loc', lazy=True)
+    sales_items = db.relationship('SaleItem', backref='product_loc', lazy=True)
 
     def __repr__(self):
         return f'<ProductLoc P:{self.product_id} L:{self.location_id} Q:{self.quantity_on_hand}>'
@@ -160,14 +160,31 @@ class Campaign(db.Model):
 class Sale(db.Model):
     __tablename__ = 'sale'
     id = db.Column('sale_id', db.Integer, primary_key=True)
-    pl_id = db.Column(db.Integer, db.ForeignKey('product_loc.pl_id'), nullable=False)
     sale_date = db.Column(db.DateTime, default=datetime.utcnow)
-    quantity_sold = db.Column(db.Integer, nullable=False)
     customer_name = db.Column(db.String(200))
+    client_email = db.Column(db.String(200))
     sold_by = db.Column(db.Integer, db.ForeignKey('users.user_id'))
+    location_id = db.Column(db.Integer, db.ForeignKey('location.location_id'))
+    status = db.Column(db.String(50), default='Paid') # 'Quoted', 'Pending Verification', 'Verified', 'Paid'
+    total_amount = db.Column(db.Float, default=0.0)
+
+    # Relationships
+    items = db.relationship('SaleItem', backref='sale', lazy=True)
 
     def __repr__(self):
-        return f'<Sale {self.id} Qty:{self.quantity_sold}>'
+        return f'<Sale {self.id} Status:{self.status}>'
+
+class SaleItem(db.Model):
+    __tablename__ = 'sale_item'
+    id = db.Column('si_id', db.Integer, primary_key=True)
+    sale_id = db.Column(db.Integer, db.ForeignKey('sale.sale_id'), nullable=False)
+    pl_id = db.Column(db.Integer, db.ForeignKey('product_loc.pl_id'), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_price = db.Column(db.Float, nullable=False)
+    subtotal = db.Column(db.Float, nullable=False)
+
+    def __repr__(self):
+        return f'<SaleItem Sale:{self.sale_id} PL:{self.pl_id} Qty:{self.quantity}>'
 
 class Invoice(db.Model):
     __tablename__ = 'invoice'

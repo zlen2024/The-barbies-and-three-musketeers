@@ -1,5 +1,5 @@
 from app import app, db
-from models import User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast, UserLocation, Invoice
+from models import User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, SaleItem, Forecast, UserLocation, Invoice
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 import random
@@ -157,6 +157,7 @@ def seed_database():
         print("Seeding Sales...")
         # Generate sales linked to ProductLocs
         sales = []
+        sale_items = []
         today = datetime.utcnow()
         for pl in product_locs:
             # Generate sales for the past 6 months
@@ -165,33 +166,48 @@ def seed_database():
                 for i in range(20):
                      qty = random.randint(1, 5)
                      date = today - timedelta(days=random.randint(1, 180))
-                     sale = Sale(pl_id=pl.id, sale_date=date, quantity_sold=qty, sold_by=users[2].id, customer_name=f"Customer {random.randint(1000,9999)}")
-                     sales.append(sale)
+
+                     price = 100.0
+                     if pl.product.pricing:
+                         price = pl.product.pricing[0].lsp_price or 100.0
+
+                     sale = Sale(location_id=pl.location_id, sale_date=date, sold_by=users[2].id, customer_name=f"Customer {random.randint(1000,9999)}", status="Paid", client_email=f"customer{random.randint(1000,9999)}@example.com", total_amount=price * qty)
                      db.session.add(sale)
+                     db.session.flush() # get sale.id
+                     sales.append(sale)
+
+                     sale_item = SaleItem(sale_id=sale.id, pl_id=pl.id, quantity=qty, unit_price=price, subtotal=price * qty)
+                     sale_items.append(sale_item)
+                     db.session.add(sale_item)
             else:
                 # Warehouse sales (e.g. direct orders)
                  for i in range(5):
                      qty = random.randint(10, 50)
                      date = today - timedelta(days=random.randint(1, 180))
-                     sale = Sale(pl_id=pl.id, sale_date=date, quantity_sold=qty, sold_by=users[1].id, customer_name=f"Distributor {random.randint(100,999)}")
-                     sales.append(sale)
-                     db.session.add(sale)
 
-        db.session.commit() # commit sales to get their IDs
+                     price = 100.0
+                     if pl.product.pricing:
+                         price = pl.product.pricing[0].lsp_price or 100.0
+
+                     sale = Sale(location_id=pl.location_id, sale_date=date, sold_by=users[1].id, customer_name=f"Distributor {random.randint(100,999)}", status="Paid", client_email=f"distributor{random.randint(100,999)}@example.com", total_amount=price * qty)
+                     db.session.add(sale)
+                     db.session.flush()
+                     sales.append(sale)
+
+                     sale_item = SaleItem(sale_id=sale.id, pl_id=pl.id, quantity=qty, unit_price=price, subtotal=price * qty)
+                     sale_items.append(sale_item)
+                     db.session.add(sale_item)
+
+        db.session.commit()
 
         print("Seeding Invoices...")
         invoices = []
         for idx, sale in enumerate(sales):
-            # Try to get pricing for total amount estimation
-            price = 100.0 # Default price
-            if sale.product_loc.product.pricing:
-                price = sale.product_loc.product.pricing[0].lsp_price or 100.0
-
             invoice = Invoice(
                 sale_id=sale.id,
                 invoice_number=f"INV-{sale.sale_date.strftime('%Y%m%d')}-{1000 + idx}",
                 generated_date=sale.sale_date + timedelta(hours=1),
-                total_amount=price * sale.quantity_sold
+                total_amount=sale.total_amount
             )
             invoices.append(invoice)
 

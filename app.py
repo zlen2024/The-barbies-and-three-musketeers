@@ -7,7 +7,7 @@ from functools import wraps
 from sqlalchemy.orm import joinedload
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast, UserLocation, Invoice
+from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, SaleItem, Forecast, UserLocation, Invoice
 
 
 # Configure Logging
@@ -137,7 +137,7 @@ def api_dashboard():
     # For MVP/Demo: Iterate sales or simple sum.
 
     # Let's just sum quantity for now as "Total Units Sold" or try to estimate revenue
-    total_sales_units = db.session.query(db.func.sum(Sale.quantity_sold)).scalar() or 0
+    total_sales_units = db.session.query(db.func.sum(SaleItem.quantity)).scalar() or 0
 
     # Estimate Revenue: Get all sales, and for each, find the product's price.
     # This is heavy for production but fine for demo.
@@ -153,9 +153,10 @@ def api_dashboard():
     pricings = {p.product_id: p.lsp_price for p in Pricing.query.all()}
 
     for sale in sales:
-        prod_id = sale.product_loc.product_id
-        price = pricings.get(prod_id, 0)
-        total_revenue += sale.quantity_sold * price
+        for item in sale.items:
+            prod_id = item.product_loc.product_id
+            price = pricings.get(prod_id, 0)
+            total_revenue += item.quantity * price
 
     # 2. Predicted Demand
     total_predicted_demand = db.session.query(db.func.sum(Forecast.projected_demand)).scalar() or 0
@@ -190,7 +191,7 @@ def api_dashboard():
         else:
             end_date = datetime(int(year_num), int(month_num) + 1, 1)
 
-        actual_sales = db.session.query(db.func.sum(Sale.quantity_sold)).filter(
+        actual_sales = db.session.query(db.func.sum(SaleItem.quantity)).join(Sale, Sale.id == SaleItem.sale_id).filter(
             Sale.sale_date >= start_date,
             Sale.sale_date < end_date
         ).scalar() or 0
@@ -276,7 +277,7 @@ def api_generate_pr():
 # Helper functions for calculations
 def _calculate_ams(product_id, days):
     cutoff = datetime.now() - timedelta(days=days)
-    total_sales = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
+    total_sales = db.session.query(db.func.sum(SaleItem.quantity)).join(Sale, Sale.id == SaleItem.sale_id).join(ProductLoc, ProductLoc.id == SaleItem.pl_id).filter(
         ProductLoc.product_id == product_id,
         Sale.sale_date >= cutoff
     ).scalar() or 0
@@ -285,8 +286,8 @@ def _calculate_ams(product_id, days):
 def _get_sales_distribution(product_id):
     sales_channels = db.session.query(
         Location.description,
-        db.func.sum(Sale.quantity_sold)
-    ).join(ProductLoc, ProductLoc.location_id == Location.id).join(Sale, Sale.pl_id == ProductLoc.id).filter(
+        db.func.sum(SaleItem.quantity)
+    ).join(ProductLoc, ProductLoc.location_id == Location.id).join(SaleItem, SaleItem.pl_id == ProductLoc.id).join(Sale, Sale.id == SaleItem.sale_id).filter(
         ProductLoc.product_id == product_id
     ).group_by(Location.description).all()
 
@@ -307,7 +308,7 @@ def _get_monthly_sales_trend(product_id):
         else:
              month_end = month_start + timedelta(days=30)
 
-        monthly_sales = db.session.query(db.func.sum(Sale.quantity_sold)).join(ProductLoc).filter(
+        monthly_sales = db.session.query(db.func.sum(SaleItem.quantity)).join(Sale, Sale.id == SaleItem.sale_id).join(ProductLoc, ProductLoc.id == SaleItem.pl_id).filter(
             ProductLoc.product_id == product_id,
             Sale.sale_date >= month_start,
             Sale.sale_date < month_end
@@ -775,8 +776,9 @@ def api_forecast_data():
 
     # We will generate mock data for 90 days.
     # In a real app, you would query:
-    # sales = db.session.query(db.func.date(Sale.sale_date), db.func.sum(Sale.quantity_sold)) \
-    #            .filter(Sale.pl_id == product_loc.id, Sale.sale_date >= start_date) \
+    # sales = db.session.query(db.func.date(Sale.sale_date), db.func.sum(SaleItem.quantity)) \
+    #            .join(SaleItem, SaleItem.sale_id == Sale.id) \
+    #            .filter(SaleItem.pl_id == product_loc.id, Sale.sale_date >= start_date) \
     #            .group_by(db.func.date(Sale.sale_date)).all()
 
     chart_data = []
@@ -840,18 +842,34 @@ def api_forecast_data():
 @role_required('Sales')
 def api_sales():
     if request.method == 'GET':
-        sales = Sale.query.order_by(Sale.sale_date.desc()).all()
+        # Show all sales for the locations assigned to this user, plus sales made by this user
+        user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
+        loc_ids = [ul.location_id for ul in user_locs]
+
+        if current_user.role == 'Admin' or current_user.role == 'Manager':
+            sales = Sale.query.order_by(Sale.sale_date.desc()).all()
+        else:
+            sales = Sale.query.filter(
+                (Sale.sold_by == current_user.id) | (Sale.location_id.in_(loc_ids))
+            ).order_by(Sale.sale_date.desc()).all()
+
         return jsonify([{
             'id': sale.id,
             'customer_name': sale.customer_name,
-            'quantity': sale.quantity_sold,
-            'date': sale.sale_date.strftime('%Y-%m-%d %H:%M:%S')
+            'client_email': sale.client_email,
+            'status': sale.status,
+            'total_amount': sale.total_amount,
+            'sold_by': sale.sold_by,
+            'location_id': sale.location_id,
+            'date': sale.sale_date.strftime('%Y-%m-%d %H:%M:%S'),
+            'items': [{'pl_id': item.pl_id, 'product_name': item.product_loc.product.product_name, 'quantity': item.quantity, 'unit_price': item.unit_price} for item in sale.items]
         } for sale in sales])
 
     data = request.json
     pl_id = data.get('pl_id')
     quantity_sold = data.get('quantity_sold')
     customer_name = data.get('customer_name')
+    client_email = data.get('client_email', f"{customer_name.replace(' ', '').lower()}@example.com" if customer_name else None)
 
     if not pl_id or not quantity_sold:
         return jsonify({'success': False, 'message': 'pl_id and quantity_sold are required'}), 400
@@ -863,25 +881,123 @@ def api_sales():
     if pl.quantity_on_hand < int(quantity_sold):
         return jsonify({'success': False, 'message': 'Insufficient stock'}), 400
 
-    # Deduct stock
-    pl.quantity_on_hand -= int(quantity_sold)
+    unit_price = data.get('price', None)
+    if unit_price is None or str(unit_price).strip() == '':
+        unit_price = 100.0
+        if pl.product.pricing:
+            unit_price = pl.product.pricing[0].lsp_price or 100.0
 
     sale = Sale(
-        pl_id=pl_id,
-        quantity_sold=int(quantity_sold),
+        location_id=pl.location_id,
         customer_name=customer_name,
-        sold_by=current_user.id
+        client_email=client_email,
+        sold_by=current_user.id,
+        status="Quoted",
+        total_amount=float(unit_price) * int(quantity_sold)
     )
     try:
         db.session.add(sale)
+        db.session.flush()
+
+        sale_item = SaleItem(
+            sale_id=sale.id,
+            pl_id=pl.id,
+            quantity=int(quantity_sold),
+            unit_price=float(unit_price),
+            subtotal=float(unit_price) * int(quantity_sold)
+        )
+        db.session.add(sale_item)
         db.session.commit()
-        logger.info(f"Sale added successfully: PL ID {pl_id}, Qty {quantity_sold} by user {current_user.username}")
-        return jsonify({'success': True, 'message': 'Sale added successfully', 'sale_id': sale.id})
+        logger.info(f"Quote added successfully: PL ID {pl_id}, Qty {quantity_sold} by user {current_user.username}")
+        return jsonify({'success': True, 'message': 'Quotation sent successfully!', 'sale_id': sale.id})
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Failed to add Sale for PL ID {pl_id}: {str(e)}\n")
-        return jsonify({'success': False, 'message': 'Database error occurred while adding Sale'}), 500
+        logger.error(f"Failed to add Quote for PL ID {pl_id}: {str(e)}\n")
+        return jsonify({'success': False, 'message': 'Database error occurred while creating Quote'}), 500
 
+@app.route('/api/sales/dashboard', methods=['GET'])
+@login_required
+@role_required('Sales')
+def api_sales_dashboard():
+    # Personal Sales (Verified or Paid)
+    personal_sales = db.session.query(db.func.sum(Sale.total_amount)).filter(
+        Sale.sold_by == current_user.id,
+        Sale.status.in_(['Verified', 'Paid'])
+    ).scalar() or 0.0
+
+    # Team Sales (Verified or Paid, across assigned locations)
+    user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
+    loc_ids = [ul.location_id for ul in user_locs]
+    team_sales = db.session.query(db.func.sum(Sale.total_amount)).filter(
+        Sale.location_id.in_(loc_ids),
+        Sale.status.in_(['Verified', 'Paid'])
+    ).scalar() or 0.0
+
+    # Detailed Distribution of Personal Sales (e.g. by status or location)
+    distribution_raw = db.session.query(
+        Location.description, db.func.sum(Sale.total_amount)
+    ).join(Location, Sale.location_id == Location.id).filter(
+        Sale.sold_by == current_user.id,
+        Sale.status.in_(['Verified', 'Paid'])
+    ).group_by(Location.description).all()
+
+    distribution = [{'name': name, 'value': amount} for name, amount in distribution_raw]
+
+    # Alternatively by status
+    status_dist = db.session.query(
+        Sale.status, db.func.sum(Sale.total_amount)
+    ).filter(
+        Sale.sold_by == current_user.id
+    ).group_by(Sale.status).all()
+
+    status_distribution = [{'name': status, 'value': amount} for status, amount in status_dist]
+
+    return jsonify({
+        'personalSales': personal_sales,
+        'teamSales': team_sales,
+        'locationDistribution': distribution,
+        'statusDistribution': status_distribution
+    })
+
+@app.route('/api/sales/<int:sale_id>/status', methods=['PUT'])
+@login_required
+@role_required('Sales')
+def api_update_sale_status(sale_id):
+    sale = Sale.query.get(sale_id)
+    if not sale:
+        return jsonify({'success': False, 'message': 'Sale not found'}), 404
+
+    data = request.json
+    new_status = data.get('status')
+
+    if new_status not in ['Quoted', 'Pending Verification', 'Verified', 'Paid']:
+        return jsonify({'success': False, 'message': 'Invalid status'}), 400
+
+    try:
+        if new_status == 'Verified' and sale.status != 'Verified':
+            # Deduct stock when verified
+            for item in sale.items:
+                if item.product_loc.quantity_on_hand < item.quantity:
+                    return jsonify({'success': False, 'message': f'Insufficient stock for {item.product_loc.product.product_name}'}), 400
+                item.product_loc.quantity_on_hand -= item.quantity
+
+            # Create invoice automatically
+            invoice_num = f"INV-{datetime.utcnow().strftime('%Y%m%d')}-{sale.id}"
+            if not Invoice.query.filter_by(invoice_number=invoice_num).first():
+                invoice = Invoice(
+                    sale_id=sale.id,
+                    invoice_number=invoice_num,
+                    total_amount=sale.total_amount
+                )
+                db.session.add(invoice)
+
+        sale.status = new_status
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Sale status updated to {new_status}'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating sale status: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error updating status'}), 500
 
 @app.route('/api/invoices', methods=['GET', 'POST'])
 @login_required
