@@ -8,7 +8,7 @@ from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendo
 
 # Configure Flask to serve React build files
 app = Flask(__name__, static_folder='frontend/dist')
-app.config['SECRET_KEY'] = 'dev-secret-key' # Change this in production
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
