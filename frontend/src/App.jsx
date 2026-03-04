@@ -9,6 +9,8 @@ import Suppliers from './components/Suppliers';
 import Orders from './components/Orders';
 import OrderDetail from './components/OrderDetail';
 import Profile from './components/Profile';
+import SalesHub from './components/SalesHub';
+import TeamManagement from './components/TeamManagement';
 import './index.css';
 
 // Simple Protected Route Component
@@ -88,6 +90,22 @@ function App() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales-hub"
+          element={
+            <ProtectedRoute>
+              <SalesHub />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/team-management"
+          element={
+            <ProtectedRoute>
+              <TeamManagement />
             </ProtectedRoute>
           }
         />
