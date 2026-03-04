@@ -19,6 +19,7 @@ import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@
 import { Fragment } from 'react';
 
 const Suppliers = () => {
+  const role = localStorage.getItem('userRole') || 'Staff';
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -77,9 +78,11 @@ const Suppliers = () => {
           <Title>Suppliers</Title>
           <Text>Manage your vendors and suppliers.</Text>
         </div>
-        <Button icon={Plus} onClick={() => setIsModalOpen(true)}>
-          Add Vendor
-        </Button>
+        {role === 'Manager' && (
+            <Button icon={Plus} onClick={() => setIsModalOpen(true)}>
+              Add Vendor
+            </Button>
+        )}
       </div>
 
       <Card>

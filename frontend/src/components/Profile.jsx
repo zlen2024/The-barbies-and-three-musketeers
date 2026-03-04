@@ -10,6 +10,7 @@ const Profile = () => {
   const handleLogout = () => {
     localStorage.removeItem('userRole');
     localStorage.removeItem('username');
+    localStorage.removeItem('userId');
     window.location.href = '/';
   };
 

@@ -8,6 +8,8 @@ const valueFormatter = (number) => `$ ${new Intl.NumberFormat("us").format(numbe
 const numberFormatter = (number) => `${new Intl.NumberFormat("us").format(number).toString()}`;
 
 const Dashboard = () => {
+  const role = localStorage.getItem('userRole') || 'Staff';
+
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [margin, setMargin] = useState(20); // Default 20% margin
@@ -49,8 +51,12 @@ const Dashboard = () => {
 
   const handleGeneratePR = async () => {
       try {
+          // Ask user for a user location id for now
+          const ulId = prompt("Enter your User Location ID (ul_id):", "1");
+          if (!ulId) return;
+
           alert("Generating Purchase Request...");
-          await axios.post('/api/generate-pr', { sku_id: 'HT-PLATZ-450-H', quantity: 100 });
+          await axios.post('/api/generate-pr', { sku_id: 'HT-PLATZ-450-H', quantity: 100, ul_id: parseInt(ulId, 10) });
           alert("Purchase Request Generated Successfully! PDF sent to email.");
       } catch (e) {
           console.error(e);
@@ -190,23 +196,25 @@ const Dashboard = () => {
             </Card>
         </div>
 
-        {/* Action Bar */}
-        <Card decoration="left" decorationColor="blue">
-            <Flex>
-                <div>
-                    <Title>Automated Purchase Request</Title>
-                    <Text>Generate a PR based on the current AI recommendation.</Text>
-                </div>
-                <Button
-                    icon={ShoppingCart}
-                    size="lg"
-                    onClick={handleGeneratePR}
-                    color="blue"
-                >
-                    Generate PR
-                </Button>
-            </Flex>
-        </Card>
+        {/* Action Bar - Restricted to Warehouse */}
+        {role === 'Warehouse' && (
+            <Card decoration="left" decorationColor="blue">
+                <Flex>
+                    <div>
+                        <Title>Automated Purchase Request</Title>
+                        <Text>Generate a PR based on the current AI recommendation.</Text>
+                    </div>
+                    <Button
+                        icon={ShoppingCart}
+                        size="lg"
+                        onClick={handleGeneratePR}
+                        color="blue"
+                    >
+                        Generate PR
+                    </Button>
+                </Flex>
+            </Card>
+        )}
 
       </div>
     </Layout>

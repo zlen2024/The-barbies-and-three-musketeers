@@ -1,6 +1,6 @@
 import React, { Fragment } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutGrid, Package, ShoppingCart, User, LogOut, Truck, Settings, ChevronDown, LineChart } from 'lucide-react';
+import { LayoutGrid, Package, ShoppingCart, User, LogOut, Truck, Settings, ChevronDown, LineChart, Users, DollarSign } from 'lucide-react';
 import { Menu, Transition } from '@headlessui/react';
 
 const Layout = ({ children, isFixed = false, isDark = false }) => {
@@ -8,18 +8,28 @@ const Layout = ({ children, isFixed = false, isDark = false }) => {
   const username = localStorage.getItem('username') || 'User';
   const role = localStorage.getItem('userRole') || 'Staff';
 
-  const navItems = [
+  const baseNavItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutGrid },
     { name: 'Inventory', path: '/inventory', icon: Package },
     { name: 'Forecast', path: '/forecast', icon: LineChart },
     { name: 'Suppliers', path: '/suppliers', icon: Truck },
     { name: 'Orders', path: '/orders', icon: ShoppingCart },
-    { name: 'Profile', path: '/profile', icon: User },
   ];
+
+  if (role === 'Sales') {
+      baseNavItems.push({ name: 'Sales Hub', path: '/sales-hub', icon: DollarSign });
+  }
+
+  if (role === 'Manager') {
+      baseNavItems.push({ name: 'Team Mgmt', path: '/team-management', icon: Users });
+  }
+
+  const navItems = [...baseNavItems, { name: 'Profile', path: '/profile', icon: User }];
 
   const handleLogout = () => {
     localStorage.removeItem('userRole');
     localStorage.removeItem('username');
+    localStorage.removeItem('userId');
     window.location.href = '/';
   };
 

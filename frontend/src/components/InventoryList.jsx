@@ -19,6 +19,8 @@ import axios from 'axios';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 
 const InventoryList = () => {
+  const role = localStorage.getItem('userRole') || 'Staff';
+
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -119,7 +121,9 @@ const InventoryList = () => {
                 <Title>Inventory Overview</Title>
                 <Text>A list of all products and their current stock status.</Text>
             </div>
-            <Button icon={Plus} onClick={() => setIsModalOpen(true)}>Add Product</Button>
+            {role === 'Manager' && (
+                <Button icon={Plus} onClick={() => setIsModalOpen(true)}>Add Product</Button>
+            )}
         </div>
 
         {loading ? (

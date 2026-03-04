@@ -1,9 +1,10 @@
 import os
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
+from functools import wraps
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast
+from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast, UserLocation, Invoice
 
 # Configure Flask to serve React build files
 app = Flask(__name__, static_folder='frontend/dist')
@@ -23,6 +24,18 @@ def load_user(user_id):
 def unauthorized():
     return jsonify({'error': 'Unauthorized'}), 401
 
+def role_required(*roles):
+    def wrapper(fn):
+        @wraps(fn)
+        def decorated_view(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return jsonify({'error': 'Unauthorized'}), 401
+            if current_user.role not in roles:
+                return jsonify({'error': 'Forbidden: Insufficient privileges'}), 403
+            return fn(*args, **kwargs)
+        return decorated_view
+    return wrapper
+
 # API: Login
 @app.route('/api/login', methods=['POST'])
 def api_login():
@@ -40,7 +53,7 @@ def api_login():
     # user.last_login = datetime.utcnow() # User model doesn't have last_login anymore in new schema
     # db.session.commit()
 
-    return jsonify({'success': True, 'role': user.role, 'username': user.username})
+    return jsonify({'success': True, 'role': user.role, 'username': user.username, 'user_id': user.id})
 
 # API: Logout
 @app.route('/api/logout', methods=['POST'])
@@ -149,6 +162,7 @@ def api_dashboard():
 # API: Generate PR
 @app.route('/api/generate-pr', methods=['POST'])
 @login_required
+@role_required('Warehouse')
 def api_generate_pr():
     data = request.json
     sku_id = data.get('sku_id', 'SKU-123')
@@ -172,8 +186,18 @@ def api_generate_pr():
         if not pv:
             return jsonify({'success': False, 'message': 'No vendor found for this product'}), 400
 
+        ul_id = data.get('ul_id')
+        if not ul_id:
+            return jsonify({'success': False, 'message': 'ul_id is required to create a Product Order'}), 400
+
+        # Verify ul_id exists and belongs to current user
+        user_loc = UserLocation.query.filter_by(ul_id=ul_id, uid=current_user.id).first()
+        if not user_loc:
+            return jsonify({'success': False, 'message': 'Invalid User Location (ul_id) or unauthorized access'}), 403
+
         pr = ProductOrder(
             pv_id=pv.id,
+            ul_id=ul_id,
             order_qty=int(quantity),
             status='Pending',
             confirmation_status='Pending', # Acts as PR
@@ -224,6 +248,7 @@ def api_inventory():
 # API: Add Product
 @app.route('/api/products', methods=['POST'])
 @login_required
+@role_required('Manager')
 def api_add_product():
     data = request.json
     model_code = data.get('model_code')
@@ -268,6 +293,7 @@ def api_get_vendors():
 # API: Add Vendor
 @app.route('/api/vendors', methods=['POST'])
 @login_required
+@role_required('Manager')
 def api_add_vendor():
     data = request.json
     vendor_name = data.get('vendor_name')
@@ -685,6 +711,106 @@ def api_forecast_data():
         chart_data.append(entry)
 
     return jsonify(chart_data)
+
+# API: Sales Endpoints
+@app.route('/api/sales', methods=['POST'])
+@login_required
+@role_required('Sales')
+def api_add_sale():
+    data = request.json
+    pl_id = data.get('pl_id')
+    quantity_sold = data.get('quantity_sold')
+    customer_name = data.get('customer_name')
+
+    if not pl_id or not quantity_sold:
+        return jsonify({'success': False, 'message': 'pl_id and quantity_sold are required'}), 400
+
+    pl = ProductLoc.query.get(pl_id)
+    if not pl:
+        return jsonify({'success': False, 'message': 'Product Location not found'}), 404
+
+    if pl.quantity_on_hand < int(quantity_sold):
+        return jsonify({'success': False, 'message': 'Insufficient stock'}), 400
+
+    # Deduct stock
+    pl.quantity_on_hand -= int(quantity_sold)
+
+    sale = Sale(
+        pl_id=pl_id,
+        quantity_sold=int(quantity_sold),
+        customer_name=customer_name,
+        sold_by=current_user.id
+    )
+    db.session.add(sale)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Sale added successfully', 'sale_id': sale.id})
+
+
+@app.route('/api/invoices', methods=['POST'])
+@login_required
+@role_required('Sales')
+def api_generate_invoice():
+    data = request.json
+    sale_id = data.get('sale_id')
+    invoice_number = data.get('invoice_number')
+    total_amount = data.get('total_amount')
+
+    if not sale_id or not invoice_number or total_amount is None:
+        return jsonify({'success': False, 'message': 'sale_id, invoice_number, and total_amount are required'}), 400
+
+    sale = Sale.query.get(sale_id)
+    if not sale:
+        return jsonify({'success': False, 'message': 'Sale not found'}), 404
+
+    existing_invoice = Invoice.query.filter_by(invoice_number=invoice_number).first()
+    if existing_invoice:
+        return jsonify({'success': False, 'message': 'Invoice number already exists'}), 400
+
+    invoice = Invoice(
+        sale_id=sale_id,
+        invoice_number=invoice_number,
+        total_amount=float(total_amount)
+    )
+    db.session.add(invoice)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Invoice generated successfully', 'invoice_id': invoice.id})
+
+
+# API: Assign Location (Manager Only)
+@app.route('/api/assign-location', methods=['POST'])
+@login_required
+@role_required('Manager')
+def api_assign_location():
+    data = request.json
+    uid = data.get('uid')
+    location_id = data.get('location_id')
+
+    if not uid or not location_id:
+        return jsonify({'success': False, 'message': 'uid and location_id are required'}), 400
+
+    user = User.query.get(uid)
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found'}), 404
+
+    loc = Location.query.get(location_id)
+    if not loc:
+        return jsonify({'success': False, 'message': 'Location not found'}), 404
+
+    existing_assignment = UserLocation.query.filter_by(uid=uid, location_id=location_id).first()
+    if existing_assignment:
+        return jsonify({'success': False, 'message': 'User is already assigned to this location'}), 400
+
+    user_location = UserLocation(
+        uid=uid,
+        location_id=location_id
+    )
+    db.session.add(user_location)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Location assigned to user successfully', 'ul_id': user_location.ul_id})
+
 
 # Serve React App for all other routes
 @app.route('/', defaults={'path': ''})

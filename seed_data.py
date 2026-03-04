@@ -1,5 +1,5 @@
 from app import app, db
-from models import User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast
+from models import User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, Forecast, UserLocation, Invoice
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 import random
@@ -33,6 +33,18 @@ def seed_database():
             Location(loc_code='CH-ESTORE', description='Direct E-Store', type='Online Channel')
         ]
         db.session.add_all(locations)
+        db.session.commit()
+
+        print("Seeding User Locations...")
+        user_locations = [
+            # Assign warehouse user to WH-MAIN and WH-REWORK
+            UserLocation(uid=users[1].id, location_id=locations[0].id),
+            UserLocation(uid=users[1].id, location_id=locations[1].id),
+            # Assign sales user to CH-LAZADA and CH-SHOPEE
+            UserLocation(uid=users[2].id, location_id=locations[2].id),
+            UserLocation(uid=users[2].id, location_id=locations[3].id),
+        ]
+        db.session.add_all(user_locations)
         db.session.commit()
 
         print("Seeding Vendors...")
@@ -153,15 +165,37 @@ def seed_database():
                 for i in range(20):
                      qty = random.randint(1, 5)
                      date = today - timedelta(days=random.randint(1, 180))
-                     sales.append(Sale(pl_id=pl.id, sale_date=date, quantity_sold=qty, sold_by=users[2].id, customer_name=f"Customer {random.randint(1000,9999)}"))
+                     sale = Sale(pl_id=pl.id, sale_date=date, quantity_sold=qty, sold_by=users[2].id, customer_name=f"Customer {random.randint(1000,9999)}")
+                     sales.append(sale)
+                     db.session.add(sale)
             else:
                 # Warehouse sales (e.g. direct orders)
                  for i in range(5):
                      qty = random.randint(10, 50)
                      date = today - timedelta(days=random.randint(1, 180))
-                     sales.append(Sale(pl_id=pl.id, sale_date=date, quantity_sold=qty, sold_by=users[1].id, customer_name=f"Distributor {random.randint(100,999)}"))
+                     sale = Sale(pl_id=pl.id, sale_date=date, quantity_sold=qty, sold_by=users[1].id, customer_name=f"Distributor {random.randint(100,999)}")
+                     sales.append(sale)
+                     db.session.add(sale)
 
-        db.session.add_all(sales)
+        db.session.commit() # commit sales to get their IDs
+
+        print("Seeding Invoices...")
+        invoices = []
+        for idx, sale in enumerate(sales):
+            # Try to get pricing for total amount estimation
+            price = 100.0 # Default price
+            if sale.product_loc.product.pricing:
+                price = sale.product_loc.product.pricing[0].lsp_price or 100.0
+
+            invoice = Invoice(
+                sale_id=sale.id,
+                invoice_number=f"INV-{sale.sale_date.strftime('%Y%m%d')}-{1000 + idx}",
+                generated_date=sale.sale_date + timedelta(hours=1),
+                total_amount=price * sale.quantity_sold
+            )
+            invoices.append(invoice)
+
+        db.session.add_all(invoices)
         db.session.commit()
 
         print("Seeding Orders (POs & PRs)...")
@@ -173,23 +207,25 @@ def seed_database():
             # Confirmed PO
             orders.append(ProductOrder(
                 pv_id=pv.id,
+                ul_id=user_locations[0].ul_id, # Link to warehouse user's location
                 po_reference=f"PO-2024-{random.randint(1000,9999)}",
                 order_qty=random.randint(50, 200),
                 ets_date=today + timedelta(days=pv.lead_time_days),
                 status='Ordered',
                 confirmation_status='Confirmed',
-                created_by=users[0].id
+                created_by=users[1].id # Warehouse user
             ))
 
             # Unconfirmed PR
             orders.append(ProductOrder(
                 pv_id=pv.id,
+                ul_id=user_locations[0].ul_id, # Link to warehouse user's location
                 po_reference=None,
                 order_qty=random.randint(20, 100),
                 ets_date=None,
                 status='Pending', # Internal status
                 confirmation_status='Pending', # PR status
-                created_by=users[2].id
+                created_by=users[1].id # Warehouse user
             ))
 
         db.session.add_all(orders)
