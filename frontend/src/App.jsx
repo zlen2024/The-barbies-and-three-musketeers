@@ -52,7 +52,7 @@ function App() {
           }
         />
         <Route
-          path="/forecast/:sku"
+          path="/forecast"
           element={
             <ProtectedRoute>
               <ProductForecast />

@@ -1,9 +1,9 @@
 import React, { Fragment } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutGrid, Package, ShoppingCart, User, LogOut, Truck, Settings, ChevronDown } from 'lucide-react';
+import { LayoutGrid, Package, ShoppingCart, User, LogOut, Truck, Settings, ChevronDown, LineChart } from 'lucide-react';
 import { Menu, Transition } from '@headlessui/react';
 
-const Layout = ({ children, isFixed = false }) => {
+const Layout = ({ children, isFixed = false, isDark = false }) => {
   const location = useLocation();
   const username = localStorage.getItem('username') || 'User';
   const role = localStorage.getItem('userRole') || 'Staff';
@@ -11,6 +11,7 @@ const Layout = ({ children, isFixed = false }) => {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutGrid },
     { name: 'Inventory', path: '/inventory', icon: Package },
+    { name: 'Forecast', path: '/forecast', icon: LineChart },
     { name: 'Suppliers', path: '/suppliers', icon: Truck },
     { name: 'Orders', path: '/orders', icon: ShoppingCart },
     { name: 'Profile', path: '/profile', icon: User },
@@ -27,9 +28,9 @@ const Layout = ({ children, isFixed = false }) => {
   }
 
   return (
-    <div className={`flex flex-col bg-slate-50 ${isFixed ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+    <div className={`flex flex-col ${isDark ? 'bg-gray-900 text-gray-100' : 'bg-slate-50'} ${isFixed ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 flex-none">
+      <header className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b sticky top-0 z-50 flex-none`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
@@ -48,11 +49,11 @@ const Layout = ({ children, isFixed = false }) => {
                       to={item.path}
                       className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                         isActive
-                          ? 'border-indigo-500 text-gray-900'
-                          : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                          ? (isDark ? 'border-indigo-400 text-white' : 'border-indigo-500 text-gray-900')
+                          : (isDark ? 'border-transparent text-gray-400 hover:border-gray-300 hover:text-gray-200' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700')
                       }`}
                     >
-                      <item.icon className={`h-4 w-4 mr-2 ${isActive ? 'text-indigo-500' : 'text-gray-400'}`} />
+                      <item.icon className={`h-4 w-4 mr-2 ${isActive ? (isDark ? 'text-indigo-400' : 'text-indigo-500') : 'text-gray-400'}`} />
                       {item.name}
                     </Link>
                   );
@@ -63,15 +64,15 @@ const Layout = ({ children, isFixed = false }) => {
               {/* Profile Dropdown */}
               <Menu as="div" className="relative ml-3">
                 <div>
-                  <Menu.Button className="flex max-w-xs items-center rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                  <Menu.Button className={`flex max-w-xs items-center rounded-full ${isDark ? 'bg-gray-800' : 'bg-white'} text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2`}>
                     <span className="sr-only">Open user menu</span>
-                    <div className="flex items-center gap-2 px-3 py-1 border border-gray-200 rounded-full hover:bg-gray-50 transition-colors">
-                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                    <div className={`flex items-center gap-2 px-3 py-1 border ${isDark ? 'border-gray-600 hover:bg-gray-700' : 'border-gray-200 hover:bg-gray-50'} rounded-full transition-colors`}>
+                        <div className={`h-8 w-8 rounded-full ${isDark ? 'bg-indigo-900 text-indigo-200' : 'bg-indigo-100 text-indigo-600'} flex items-center justify-center font-bold`}>
                           {username.charAt(0).toUpperCase()}
                         </div>
                         <div className="hidden md:block text-left">
-                            <p className="text-sm font-medium text-gray-700 leading-none">{username}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">{role}</p>
+                            <p className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'} leading-none`}>{username}</p>
+                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-0.5`}>{role}</p>
                         </div>
                         <ChevronDown className="h-4 w-4 text-gray-400" />
                     </div>
@@ -129,14 +130,14 @@ const Layout = ({ children, isFixed = false }) => {
       </header>
 
       {/* Main Content */}
-      <main className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 ${isFixed ? 'overflow-hidden' : ''}`}>
+      <main className={`flex-1 w-full ${!isFixed ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8' : ''} ${isFixed ? 'overflow-hidden' : ''}`}>
         {children}
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-auto flex-none">
+      <footer className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-t mt-auto flex-none`}>
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-gray-500">
+          <p className={`text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             &copy; {new Date().getFullYear()} InventoryAI. All rights reserved.
           </p>
         </div>
