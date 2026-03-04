@@ -50,7 +50,7 @@ class Product(db.Model):
             return 'In Stock'
 
     # Relationships
-    inventory = db.relationship('Inventory', backref='product', uselist=False, cascade="all, delete-orphan")
+    inventory = db.relationship('Inventory', backref='product', uselist=False, cascade="all, delete-orphan", lazy='joined')
     sales_history = db.relationship('HistoricalSales', backref='product', lazy=True)
     forecast = db.relationship('Forecast', backref='product', uselist=False, cascade="all, delete-orphan")
     purchase_requests = db.relationship('PurchaseRequest', backref='product', lazy=True)
