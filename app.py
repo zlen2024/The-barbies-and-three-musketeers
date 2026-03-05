@@ -736,7 +736,12 @@ def api_confirm_order(order_id):
 @app.route('/api/forecast/locations', methods=['GET'])
 @login_required
 def api_forecast_locations():
-    locations = Location.query.all()
+    if current_user.role in ['Manager', 'Admin']:
+        locations = Location.query.all()
+    else:
+        user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
+        locations = [ul.location for ul in user_locs]
+
     location_list = [{
         'id': loc.id,
         'loc_code': loc.loc_code,
@@ -771,12 +776,27 @@ def api_locations():
 @login_required
 def api_forecast_products():
     location_id = request.args.get('location_id')
-    if not location_id:
-        return jsonify({'error': 'Location ID is required'}), 400
 
-    # Get all products that have inventory in this location
-    product_locs = ProductLoc.query.filter_by(location_id=location_id).all()
-    product_ids = [pl.product_id for pl in product_locs]
+    if current_user.role in ['Manager', 'Admin']:
+        allowed_location_ids = [loc.id for loc in Location.query.all()]
+    else:
+        user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
+        allowed_location_ids = [ul.location_id for ul in user_locs]
+
+    if location_id and location_id != 'ALL':
+        try:
+            loc_id_int = int(location_id)
+            if loc_id_int not in allowed_location_ids:
+                return jsonify({'error': 'Unauthorized location'}), 403
+            target_location_ids = [loc_id_int]
+        except ValueError:
+            target_location_ids = allowed_location_ids
+    else:
+        target_location_ids = allowed_location_ids
+
+    # Get all products that have inventory in these locations
+    product_locs = ProductLoc.query.filter(ProductLoc.location_id.in_(target_location_ids)).all()
+    product_ids = list(set([pl.product_id for pl in product_locs]))
 
     products = Product.query.filter(Product.id.in_(product_ids)).all()
 
@@ -796,19 +816,46 @@ def api_forecast_products():
 def api_forecast_data():
     location_id = request.args.get('location_id')
     product_id = request.args.get('product_id')
+    interval = request.args.get('interval', 'daily') # 'daily', 'weekly', 'biweekly', 'monthly'
 
     if not location_id or not product_id:
         return jsonify({'error': 'Location ID and Product ID are required'}), 400
 
-    # Get the specific ProductLoc ID for this location and product
-    product_loc = ProductLoc.query.filter_by(location_id=location_id, product_id=product_id).first()
+    if current_user.role in ['Manager', 'Admin']:
+        allowed_location_ids = [loc.id for loc in Location.query.all()]
+    else:
+        user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
+        allowed_location_ids = [ul.location_id for ul in user_locs]
 
-    if not product_loc:
+    target_location_ids = allowed_location_ids
+    if location_id != 'ALL':
+        try:
+            loc_id_int = int(location_id)
+            if loc_id_int not in allowed_location_ids:
+                return jsonify({'error': 'Unauthorized location'}), 403
+            target_location_ids = [loc_id_int]
+        except ValueError:
+            target_location_ids = allowed_location_ids
+
+    # Build base query for ProductLocs
+    pl_query = ProductLoc.query.filter(ProductLoc.location_id.in_(target_location_ids))
+
+    if product_id != 'ALL':
+        try:
+            prod_id_int = int(product_id)
+            pl_query = pl_query.filter(ProductLoc.product_id == prod_id_int)
+        except ValueError:
+            pass
+
+    product_locs = pl_query.all()
+    if not product_locs:
         return jsonify([]) # No data for this combination
 
-    # Fetch daily sales for this product_loc for the past 90 days
+    pl_ids = [pl.id for pl in product_locs]
+
+    # Fetch daily sales for the past 2 years (730 days) to allow for Monthly MAs
     today = datetime.now()
-    start_date = today - timedelta(days=90)
+    start_date = today - timedelta(days=730)
 
     # Fetch actual sales from database
     sales_data = db.session.query(
@@ -816,27 +863,97 @@ def api_forecast_data():
         db.func.sum(SaleItem.quantity).label('total_quantity')
     ) \
     .join(SaleItem, SaleItem.sale_id == Sale.id) \
-    .filter(SaleItem.pl_id == product_loc.id, Sale.sale_date >= start_date) \
+    .filter(SaleItem.pl_id.in_(pl_ids), Sale.sale_date >= start_date) \
     .group_by(db.func.date(Sale.sale_date)).all()
 
     sales_dict = {str(sale.date): sale.total_quantity for sale in sales_data}
 
-    chart_data = []
+    # First, generate a continuous daily series for the last 730 days
     daily_sales_raw = []
-
-    for i in range(90, -1, -1):
+    for i in range(730, -1, -1):
         target_date = today - timedelta(days=i)
         date_str = target_date.strftime("%Y-%m-%d")
-
         daily_vol = sales_dict.get(date_str, 0)
-
         daily_sales_raw.append({
-            'date': date_str,
-            'volume': daily_vol,
+            'date': target_date,
+            'date_str': date_str,
             'raw_val': daily_vol
         })
 
-    # Calculate Moving Averages
+    aggregated_data = []
+
+    if interval == 'daily':
+        for item in daily_sales_raw[-90:]: # Return last 90 days for daily view
+            aggregated_data.append({
+                'label': item['date_str'],
+                'raw_val': item['raw_val']
+            })
+    elif interval == 'weekly':
+        # Group into 7-day buckets, working backwards from today
+        buckets = []
+        current_bucket = []
+        for item in reversed(daily_sales_raw):
+            current_bucket.append(item)
+            if len(current_bucket) == 7:
+                buckets.append(current_bucket)
+                current_bucket = []
+
+        # Reverse buckets back to chronological order
+        buckets.reverse()
+
+        for bucket in buckets:
+            # Re-reverse the bucket to get chronological order within the bucket for labeling
+            bucket.reverse()
+            total_vol = sum(x['raw_val'] for x in bucket)
+            start_label = bucket[0]['date_str']
+            end_label = bucket[-1]['date_str']
+            aggregated_data.append({
+                'label': f"{start_label} to {end_label}",
+                'raw_val': total_vol
+            })
+
+    elif interval == 'biweekly':
+        # Group into 14-day buckets
+        buckets = []
+        current_bucket = []
+        for item in reversed(daily_sales_raw):
+            current_bucket.append(item)
+            if len(current_bucket) == 14:
+                buckets.append(current_bucket)
+                current_bucket = []
+
+        buckets.reverse()
+        for bucket in buckets:
+            bucket.reverse()
+            total_vol = sum(x['raw_val'] for x in bucket)
+            start_label = bucket[0]['date_str']
+            end_label = bucket[-1]['date_str']
+            aggregated_data.append({
+                'label': f"{start_label} to {end_label}",
+                'raw_val': total_vol
+            })
+
+    elif interval == 'monthly':
+        # Group by calendar month
+        month_buckets = {}
+        for item in daily_sales_raw:
+            month_key = item['date'].strftime("%Y-%m")
+            if month_key not in month_buckets:
+                month_buckets[month_key] = 0
+            month_buckets[month_key] += item['raw_val']
+
+        # Ensure chronological order
+        sorted_months = sorted(month_buckets.keys())
+        for month in sorted_months:
+            # Format to something like "Jan 2024"
+            dt = datetime.strptime(month, "%Y-%m")
+            label = dt.strftime("%b %Y")
+            aggregated_data.append({
+                'label': label,
+                'raw_val': month_buckets[month]
+            })
+
+    # Calculate Moving Averages on aggregated data
     def calculate_ma(data, period):
         ma_data = []
         for i in range(len(data)):
@@ -847,14 +964,25 @@ def api_forecast_data():
                 ma_data.append(sum(window) / period)
         return ma_data
 
-    ma3 = calculate_ma(daily_sales_raw, 3)
-    ma7 = calculate_ma(daily_sales_raw, 7)
-    ma14 = calculate_ma(daily_sales_raw, 14)
+    ma3 = calculate_ma(aggregated_data, 3)
+    ma7 = calculate_ma(aggregated_data, 7)
+    ma14 = calculate_ma(aggregated_data, 14)
 
-    for i in range(len(daily_sales_raw)):
+    chart_data = []
+
+    # We might not want to show 730 days of data on the chart for daily.
+    # Daily limits to 90 days. Weekly limits to ~24 weeks, etc.
+    display_limit = 90
+    if interval == 'weekly': display_limit = 26 # half year
+    elif interval == 'biweekly': display_limit = 26 # year
+    elif interval == 'monthly': display_limit = 24 # 2 years
+
+    start_idx = max(0, len(aggregated_data) - display_limit)
+
+    for i in range(start_idx, len(aggregated_data)):
         entry = {
-            'date': daily_sales_raw[i]['date'],
-            'volume': daily_sales_raw[i]['volume']
+            'date': aggregated_data[i]['label'],
+            'volume': aggregated_data[i]['raw_val']
         }
         if ma3[i] is not None:
             entry['MA3'] = round(ma3[i], 2)
