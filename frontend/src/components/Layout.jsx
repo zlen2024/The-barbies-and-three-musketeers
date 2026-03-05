@@ -21,10 +21,10 @@ const Layout = ({ children, isFixed = false, isDark = false }) => {
   }
 
   if (role === 'Manager') {
-      baseNavItems.push({ name: 'Team Mgmt', path: '/team-management', icon: Users });
+      // Team Mgmt moved to workspace, but we can keep a link here or just rely on Workspace
   }
 
-  const navItems = [...baseNavItems, { name: 'Profile', path: '/profile', icon: User }];
+  const navItems = [...baseNavItems, { name: 'My Workspace', path: '/workspace', icon: User }];
 
   const handleLogout = () => {
     localStorage.removeItem('userRole');
@@ -101,23 +101,12 @@ const Layout = ({ children, isFixed = false, isDark = false }) => {
                     <Menu.Item>
                       {({ active }) => (
                         <Link
-                          to="/profile"
+                          to="/workspace"
                           className={classNames(active ? 'bg-gray-100' : '', 'flex px-4 py-2 text-sm text-gray-700 items-center')}
                         >
                           <User className="mr-2 h-4 w-4" />
-                          Profile
+                          My Workspace
                         </Link>
-                      )}
-                    </Menu.Item>
-                    <Menu.Item>
-                      {({ active }) => (
-                        <a
-                          href="#"
-                          className={classNames(active ? 'bg-gray-100' : '', 'flex px-4 py-2 text-sm text-gray-700 items-center')}
-                        >
-                          <Settings className="mr-2 h-4 w-4" />
-                          Settings
-                        </a>
                       )}
                     </Menu.Item>
                     <Menu.Item>

@@ -9,8 +9,13 @@ class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column('user_id', db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
+    email = db.Column(db.String(200), unique=True, nullable=True)
     role = db.Column(db.String(50), nullable=False)  # 'Admin', 'Warehouse', 'Sales', 'Manager'
     password_hash = db.Column(db.String(200), nullable=False)
+
+    # Relationships for InternalMail
+    messages_sent = db.relationship('InternalMail', foreign_keys='InternalMail.sender_id', backref='sender', lazy=True)
+    messages_received = db.relationship('InternalMail', foreign_keys='InternalMail.receiver_id', backref='receiver', lazy=True)
 
     def get_id(self):
         return str(self.id)
@@ -213,3 +218,17 @@ class Forecast(db.Model):
 
     def __repr__(self):
         return f'<Forecast P:{self.product_id}>'
+
+# 6. Internal Mail
+class InternalMail(db.Model):
+    __tablename__ = 'internal_mail'
+    id = db.Column('mail_id', db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    subject = db.Column(db.String(200), nullable=True)
+    body = db.Column(db.Text, nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    is_read = db.Column(db.Boolean, default=False)
+
+    def __repr__(self):
+        return f'<InternalMail {self.id} S:{self.sender_id} R:{self.receiver_id}>'
