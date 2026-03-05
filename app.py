@@ -140,23 +140,14 @@ def api_dashboard():
     total_sales_units = db.session.query(db.func.sum(SaleItem.quantity)).scalar() or 0
 
     # Estimate Revenue: Get all sales, and for each, find the product's price.
-    # This is heavy for production but fine for demo.
-    # Better: SQL Query
-    # SELECT SUM(s.quantity_sold * p.lsp_price) FROM sale s
-    # JOIN product_loc pl ON s.pl_id = pl.pl_id
-    # JOIN product pr ON pl.product_id = pr.product_id
-    # JOIN pricing p ON pr.product_id = p.product_id
-
-    total_revenue = 0
-    sales = Sale.query.all()
-    # Cache pricing
-    pricings = {p.product_id: p.lsp_price for p in Pricing.query.all()}
-
-    for sale in sales:
-        for item in sale.items:
-            prod_id = item.product_loc.product_id
-            price = pricings.get(prod_id, 0)
-            total_revenue += item.quantity * price
+    # Optimized to use a single SQL aggregate query instead of N+1 queries in Python.
+    total_revenue = db.session.query(
+        db.func.sum(SaleItem.quantity * Pricing.lsp_price)
+    ).join(
+        ProductLoc, SaleItem.pl_id == ProductLoc.id
+    ).join(
+        Pricing, ProductLoc.product_id == Pricing.product_id
+    ).scalar() or 0
 
     # 2. Predicted Demand
     total_predicted_demand = db.session.query(db.func.sum(Forecast.projected_demand)).scalar() or 0
@@ -275,6 +266,23 @@ def api_generate_pr():
     return jsonify({'success': False, 'message': 'Product not found'}), 404
 
 # Helper functions for calculations
+def _calculate_ams_bulk(days):
+    cutoff = datetime.now() - timedelta(days=days)
+    sales_data = db.session.query(
+        ProductLoc.product_id,
+        db.func.sum(SaleItem.quantity)
+    ).join(
+        SaleItem, ProductLoc.id == SaleItem.pl_id
+    ).join(
+        Sale, Sale.id == SaleItem.sale_id
+    ).filter(
+        Sale.sale_date >= cutoff
+    ).group_by(
+        ProductLoc.product_id
+    ).all()
+
+    return {product_id: round((total_sales or 0) / (days / 30), 1) for product_id, total_sales in sales_data}
+
 def _calculate_ams(product_id, days):
     cutoff = datetime.now() - timedelta(days=days)
     total_sales = db.session.query(db.func.sum(SaleItem.quantity)).join(Sale, Sale.id == SaleItem.sale_id).join(ProductLoc, ProductLoc.id == SaleItem.pl_id).filter(
@@ -348,6 +356,7 @@ def _get_order_summary(product):
 def api_inventory():
     products = Product.query.all()
     inventory_list = []
+    ams_bulk = _calculate_ams_bulk(90)
 
     # Pre-fetch user locations if not Admin/Manager
     user_location_ids = None
@@ -356,8 +365,8 @@ def api_inventory():
         user_location_ids = [ul.location_id for ul in user_locs]
 
     for product in products:
-        # Calculate AMS (3-Month)
-        ams_3m = _calculate_ams(product.id, 90)
+        # Calculate AMS (3-Month) using bulk data
+        ams_3m = ams_bulk.get(product.id, 0.0)
 
         # Calculate stock based on user's assigned locations
         if user_location_ids is not None:
@@ -390,10 +399,11 @@ def api_inventory():
 def api_inventory_all():
     products = Product.query.all()
     inventory_list = []
+    ams_bulk = _calculate_ams_bulk(90)
 
     for product in products:
-        # Calculate AMS (3-Month)
-        ams_3m = _calculate_ams(product.id, 90)
+        # Calculate AMS (3-Month) using bulk data
+        ams_3m = ams_bulk.get(product.id, 0.0)
 
         # Calculate stock across all locations
         stock = product.total_stock
@@ -609,14 +619,15 @@ def api_inventory_location(location_id):
     product_locs = ProductLoc.query.filter_by(location_id=location_id).all()
 
     products_data = []
+    ams_bulk = _calculate_ams_bulk(90)
     for pl in product_locs:
         product = pl.product
 
         # Calculate AMS (Average Monthly Sales) for this product
         # NOTE: Ideally AMS would be location-specific, but the existing _calculate_ams
         # calculates globally. We'll use the global one for consistency or just omit.
-        # For now, using global AMS.
-        ams = _calculate_ams(product.id, 90)
+        # For now, using global AMS computed efficiently via bulk.
+        ams = ams_bulk.get(product.id, 0.0)
 
         products_data.append({
             'id': product.id,
