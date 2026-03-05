@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Layout from './Layout';
-import { Card, Title, Text, Button, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Grid, Select, SelectItem, TextInput, NumberInput, DonutChart, Dialog, DialogPanel } from "@tremor/react";
+import { Card, Title, Text, Button, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Grid, Select, SelectItem, TextInput, NumberInput, BarChart, AreaChart, Dialog, DialogPanel } from "@tremor/react";
 import axios from 'axios';
 import { Plus, Check, FileText, Send, DollarSign, PenTool, CheckCircle, Mail, Loader2, MapPin, Search } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -164,34 +164,46 @@ const SalesHub = () => {
 
             <Grid numItemsSm={1} numItemsLg={2} className="gap-6">
               <Card>
-                <Title>My Sales by Location</Title>
-                <div className="h-64 mt-4 flex items-center justify-center">
-                  {dashboardData.locationDistribution?.length > 0 ? (
-                    <DonutChart
-                      data={dashboardData.locationDistribution}
-                      category="value"
+                <Title>Sales by Location</Title>
+                <Text>Revenue distribution across locations</Text>
+                <div className="h-64 mt-4">
+                  {dashboardData.salesByLocation?.length > 0 ? (
+                    <BarChart
+                      data={dashboardData.salesByLocation}
                       index="name"
-                      colors={["blue", "cyan", "indigo", "violet", "fuchsia"]}
+                      categories={["value"]}
+                      colors={["blue"]}
+                      yAxisWidth={80}
+                      showLegend={false}
                       className="h-full w-full"
+                      valueFormatter={(number) => `$${Intl.NumberFormat('en-US').format(number).toString()}`}
                     />
                   ) : (
-                    <Text>No data available</Text>
+                    <div className="h-full flex items-center justify-center">
+                      <Text>No data available</Text>
+                    </div>
                   )}
                 </div>
               </Card>
               <Card>
-                <Title>Pipeline Status Breakdown</Title>
-                <div className="h-64 mt-4 flex items-center justify-center">
-                   {dashboardData.statusDistribution?.length > 0 ? (
-                    <DonutChart
-                      data={dashboardData.statusDistribution}
-                      category="value"
-                      index="name"
-                      colors={["gray", "yellow", "blue", "green"]}
+                <Title>Pipeline Velocity</Title>
+                <Text>Revenue over time</Text>
+                <div className="h-64 mt-4">
+                   {dashboardData.pipelineVelocity?.length > 0 ? (
+                    <AreaChart
+                      data={dashboardData.pipelineVelocity}
+                      index="month"
+                      categories={["sales"]}
+                      colors={["blue"]}
+                      yAxisWidth={80}
+                      showLegend={false}
                       className="h-full w-full"
+                      valueFormatter={(number) => `$${Intl.NumberFormat('en-US').format(number).toString()}`}
                     />
                   ) : (
-                    <Text>No data available</Text>
+                    <div className="h-full flex items-center justify-center">
+                      <Text>No data available</Text>
+                    </div>
                   )}
                 </div>
               </Card>
