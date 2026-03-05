@@ -165,8 +165,8 @@ const TeamTab = ({ role, setActiveTab }) => {
           axios.get('/api/workspace/users'),
           axios.get('/api/locations')
       ]);
-      setUsersList(uRes.data.users || []);
-      setLocationsList(lRes.data.locations || []);
+      setUsersList(uRes.data?.users || []);
+      setLocationsList(Array.isArray(lRes.data) ? lRes.data : (lRes.data?.locations || []));
     } catch (err) {
         console.error("Failed to load users/locations for manager", err);
     }

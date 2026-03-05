@@ -45,9 +45,9 @@ const SalesHub = () => {
       setInvoices(invoicesRes.data || []);
       setDashboardData(dashboardRes.data);
 
-      const userLocations = locsRes.data.filter(l => l.assigned);
+      const userLocations = Array.isArray(locsRes.data) ? locsRes.data : [];
       setAssignedLocations(userLocations);
-      if (userLocations.length > 0) {
+      if (userLocations.length > 0 && userLocations[0].id) {
         setSelectedLocation(userLocations[0].id.toString());
         fetchProductsForLocation(userLocations[0].id);
       }
@@ -61,7 +61,7 @@ const SalesHub = () => {
 
   const fetchProductsForLocation = async (locId) => {
     try {
-      const res = await axios.get(`/api/inventory?location_id=${locId}`);
+      const res = await axios.get(`/api/inventory/location/${locId}`);
       setLocationProducts(res.data);
     } catch (error) {
       console.error("Error fetching products", error);
@@ -279,7 +279,7 @@ const SalesHub = () => {
               <Text className="mb-1 font-medium">1. Select Location</Text>
               <Select value={selectedLocation} onValueChange={handleLocationChange} icon={MapPin}>
                 {assignedLocations.map(loc => (
-                  <SelectItem key={loc.id} value={loc.id.toString()}>{loc.name}</SelectItem>
+                  <SelectItem key={loc.id} value={loc.id.toString()}>{loc.loc_code} - {loc.description}</SelectItem>
                 ))}
               </Select>
             </div>
@@ -315,8 +315,8 @@ const SalesHub = () => {
                     placeholder="Select product..."
                   >
                     {locationProducts.map(p => (
-                      <SelectItem key={p.pl_id} value={p.pl_id.toString()}>
-                        {p.model_code} - Stock: {p.quantity_on_hand}
+                      <SelectItem key={p.id} value={p.id.toString()}>
+                        {p.sku_id} - Stock: {p.quantity}
                       </SelectItem>
                     ))}
                   </Select>
