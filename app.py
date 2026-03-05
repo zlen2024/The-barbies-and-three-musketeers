@@ -349,12 +349,23 @@ def api_inventory():
     products = Product.query.all()
     inventory_list = []
 
+    # Pre-fetch user locations if not Admin/Manager
+    user_location_ids = None
+    if current_user.role not in ['Admin', 'Manager']:
+        user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
+        user_location_ids = [ul.location_id for ul in user_locs]
+
     for product in products:
         # Calculate AMS (3-Month)
         ams_3m = _calculate_ams(product.id, 90)
 
+        # Calculate stock based on user's assigned locations
+        if user_location_ids is not None:
+            stock = sum(pl.quantity_on_hand for pl in product.product_locs if pl.location_id in user_location_ids)
+        else:
+            stock = product.total_stock
+
         # Status Logic
-        stock = product.total_stock
         if stock == 0:
             status_display = "Critical"
         elif stock < 50:
@@ -465,7 +476,18 @@ def api_product_detail(sku):
     ams_3m = _calculate_ams(product.id, 90)
     ams_6m = _calculate_ams(product.id, 180)
     trend_percentage = round(((ams_3m - ams_6m) / ams_6m * 100), 1) if ams_6m > 0 else 0
-    coverage = round(product.total_stock / ams_3m, 1) if ams_3m > 0 else 0
+
+    user_location_ids = None
+    if current_user.role not in ['Admin', 'Manager']:
+        user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
+        user_location_ids = [ul.location_id for ul in user_locs]
+
+    if user_location_ids is not None:
+        stock = sum(pl.quantity_on_hand for pl in product.product_locs if pl.location_id in user_location_ids)
+    else:
+        stock = product.total_stock
+
+    coverage = round(stock / ams_3m, 1) if ams_3m > 0 else 0
 
     # Fetch complex data structures via helpers
     distribution_data = _get_sales_distribution(product.id)
@@ -473,11 +495,15 @@ def api_product_detail(sku):
     pr_data, avg_lead_time, total_incoming = _get_order_summary(product)
 
     # Simple data mappings
-    location_stock = [{
-        'location': pl.location.description,
-        'type': pl.location.type,
-        'quantity': pl.quantity_on_hand
-    } for pl in product.product_locs]
+    location_stock = []
+    for pl in product.product_locs:
+        if user_location_ids is not None and pl.location_id not in user_location_ids:
+            continue
+        location_stock.append({
+            'location': pl.location.description,
+            'type': pl.location.type,
+            'quantity': pl.quantity_on_hand
+        })
 
     vendor_info = [{
         'id': pv.vendor_id,
@@ -497,13 +523,13 @@ def api_product_detail(sku):
             'name': product.product_name,
             'sku': product.model_code,
             'category': product.category,
-            'status': "In Stock" if product.total_stock > 0 else "Critical",
+            'status': "In Stock" if stock > 0 else "Critical",
             'lead_time': avg_lead_time
         },
         'stock_health': {
-            'total_physical': product.total_stock,
+            'total_physical': stock,
             'reserved': 0,
-            'free_to_sell': product.total_stock
+            'free_to_sell': stock
         },
         'velocity': {
             'ams_3m': ams_3m,
@@ -535,6 +561,13 @@ def api_product_detail(sku):
 @app.route('/api/inventory/location/<int:location_id>', methods=['GET'])
 @login_required
 def api_inventory_location(location_id):
+    # Check access control for location if not Admin/Manager
+    if current_user.role not in ['Admin', 'Manager']:
+        user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
+        user_location_ids = [ul.location_id for ul in user_locs]
+        if location_id not in user_location_ids:
+            return jsonify({'error': 'Forbidden access to this location'}), 403
+
     location = Location.query.get(location_id)
     if not location:
         return jsonify({'error': 'Location not found'}), 404
@@ -574,8 +607,16 @@ def api_product_locations(product_id):
     if not product:
         return jsonify({'error': 'Product not found'}), 404
 
+    user_location_ids = None
+    if current_user.role not in ['Admin', 'Manager']:
+        user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
+        user_location_ids = [ul.location_id for ul in user_locs]
+
     location_data = []
     for pl in product.product_locs:
+        if user_location_ids is not None and pl.location_id not in user_location_ids:
+            continue
+
         location_data.append({
             'location_name': pl.location.description,
             'location_code': pl.location.loc_code,
