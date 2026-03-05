@@ -20,12 +20,16 @@ import {
 const ProductForecast = () => {
   const [locations, setLocations] = useState([]);
   const [products, setProducts] = useState([]);
-  const [selectedLocation, setSelectedLocation] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState('ALL');
+  const [selectedProduct, setSelectedProduct] = useState('ALL');
+
+  const [locationSearchTerm, setLocationSearchTerm] = useState('');
+  const [productSearchTerm, setProductSearchTerm] = useState('');
 
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
+  const [timeInterval, setTimeInterval] = useState('daily');
 
   // Projection controls state
   const [sampleSize, setSampleSize] = useState('30');
@@ -83,7 +87,7 @@ const ProductForecast = () => {
     fetchProducts();
   }, [selectedLocation]);
 
-  // Fetch Forecast Data when location AND product change
+  // Fetch Forecast Data when location, product, or interval change
   useEffect(() => {
       if (!selectedLocation || !selectedProduct) {
           setChartData([]);
@@ -92,7 +96,7 @@ const ProductForecast = () => {
       const fetchData = async () => {
           setDataLoading(true);
           try {
-              const res = await axios.get(`/api/forecast/data?location_id=${selectedLocation}&product_id=${selectedProduct}`);
+              const res = await axios.get(`/api/forecast/data?location_id=${selectedLocation}&product_id=${selectedProduct}&interval=${timeInterval}`);
               setChartData(res.data);
 
               // Update URL to reflect current selection
@@ -104,7 +108,17 @@ const ProductForecast = () => {
           }
       };
       fetchData();
-  }, [selectedLocation, selectedProduct, navigate]);
+  }, [selectedLocation, selectedProduct, timeInterval, navigate]);
+
+  const filteredLocations = locations.filter(loc =>
+      (loc.description || '').toLowerCase().includes(locationSearchTerm.toLowerCase()) ||
+      (loc.loc_code || '').toLowerCase().includes(locationSearchTerm.toLowerCase())
+  );
+
+  const filteredProducts = products.filter(prod =>
+      (prod.product_name || '').toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+      (prod.sku_id || '').toLowerCase().includes(productSearchTerm.toLowerCase())
+  );
 
   const toggleMA = (ma) => {
       setVisibleMAs(prev => ({...prev, [ma]: !prev[ma]}));
@@ -126,13 +140,31 @@ Prompt: ${analysisPrompt}`);
         {/* Left Sidebar - Markets / Products */}
         <div className="w-80 bg-gray-900 border-r border-gray-800 flex flex-col flex-none">
             {/* Locations Section */}
-            <div className="p-4 border-b border-gray-800 flex-none">
+            <div className="p-4 border-b border-gray-800 flex-1 overflow-y-auto">
                 <h2 className="text-gray-400 text-xs font-semibold mb-3 uppercase tracking-wider">Markets (Locations)</h2>
+
+                <div className="relative mb-4">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                    <input
+                        type="text"
+                        placeholder="Search locations..."
+                        className="w-full bg-gray-800 border-gray-700 text-sm text-gray-200 rounded-md pl-9 pr-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        value={locationSearchTerm}
+                        onChange={(e) => setLocationSearchTerm(e.target.value)}
+                    />
+                </div>
+
                 <div className="space-y-1">
-                    {locations.map(loc => (
+                    <div
+                        onClick={() => setSelectedLocation('ALL')}
+                        className={`p-2 rounded cursor-pointer text-sm flex items-center justify-between ${selectedLocation === 'ALL' ? 'bg-indigo-600 text-white' : 'text-gray-300 hover:bg-gray-800'}`}
+                    >
+                        <span>All Assigned Locations</span>
+                    </div>
+                    {filteredLocations.map(loc => (
                         <div
                             key={loc.id}
-                            onClick={() => { setSelectedLocation(loc.id.toString()); setSelectedProduct(''); }}
+                            onClick={() => { setSelectedLocation(loc.id.toString()); }}
                             className={`p-2 rounded cursor-pointer text-sm flex items-center justify-between ${selectedLocation === loc.id.toString() ? 'bg-indigo-600 text-white' : 'text-gray-300 hover:bg-gray-800'}`}
                         >
                             <span>{loc.description}</span>
@@ -143,7 +175,7 @@ Prompt: ${analysisPrompt}`);
             </div>
 
             {/* Products Section */}
-            <div className="p-4 flex-1 overflow-y-auto">
+            <div className="p-4 flex-1 overflow-y-auto border-t border-gray-800">
                 <h2 className="text-gray-400 text-xs font-semibold mb-3 uppercase tracking-wider">Products</h2>
 
                 <div className="relative mb-4">
@@ -152,6 +184,8 @@ Prompt: ${analysisPrompt}`);
                         type="text"
                         placeholder="Search products..."
                         className="w-full bg-gray-800 border-gray-700 text-sm text-gray-200 rounded-md pl-9 pr-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        value={productSearchTerm}
+                        onChange={(e) => setProductSearchTerm(e.target.value)}
                     />
                 </div>
 
@@ -167,7 +201,14 @@ Prompt: ${analysisPrompt}`);
                             <div className="col-span-8">Product</div>
                             <div className="col-span-4 text-right">SKU</div>
                         </div>
-                        {products.map(prod => (
+                        <div
+                            onClick={() => setSelectedProduct('ALL')}
+                            className={`grid grid-cols-12 gap-2 p-2 rounded cursor-pointer text-sm items-center ${selectedProduct === 'ALL' ? 'bg-gray-800 border-l-2 border-indigo-500 text-white' : 'text-gray-300 hover:bg-gray-800'}`}
+                        >
+                            <div className="col-span-8 truncate font-medium">All Products</div>
+                            <div className="col-span-4 text-right text-xs opacity-75">--</div>
+                        </div>
+                        {filteredProducts.map(prod => (
                             <div
                                 key={prod.id}
                                 onClick={() => setSelectedProduct(prod.id.toString())}
@@ -186,26 +227,42 @@ Prompt: ${analysisPrompt}`);
         <div className="flex-1 bg-gray-950 flex flex-col overflow-hidden relative">
 
             {/* Header / Info Bar */}
-            <div className="h-16 bg-gray-900 border-b border-gray-800 flex items-center px-6 flex-none">
-                {selectedProduct ? (
-                    <div className="flex items-center space-x-6">
-                        <div>
-                            <span className="text-gray-400 text-xs uppercase tracking-wider">Selected Product</span>
-                            <div className="text-white font-bold text-lg">
-                                {products.find(p => p.id.toString() === selectedProduct)?.product_name || 'Loading...'}
-                            </div>
-                        </div>
-                        <div className="h-8 w-px bg-gray-700"></div>
-                        <div>
-                            <span className="text-gray-400 text-xs uppercase tracking-wider">SKU</span>
-                            <div className="text-gray-300">
-                                {products.find(p => p.id.toString() === selectedProduct)?.sku_id || '--'}
-                            </div>
+            <div className="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6 flex-none">
+                <div className="flex items-center space-x-6">
+                    <div>
+                        <span className="text-gray-400 text-xs uppercase tracking-wider">Selected Location</span>
+                        <div className="text-white font-bold text-lg">
+                            {selectedLocation === 'ALL' ? 'All Assigned Locations' : (locations.find(l => l.id.toString() === selectedLocation)?.description || 'Loading...')}
                         </div>
                     </div>
-                ) : (
-                    <div className="text-gray-500 italic">Select a product to view forecast data.</div>
-                )}
+                    <div className="h-8 w-px bg-gray-700"></div>
+                    <div>
+                        <span className="text-gray-400 text-xs uppercase tracking-wider">Selected Product</span>
+                        <div className="text-white font-bold text-lg">
+                            {selectedProduct === 'ALL' ? 'All Products' : (products.find(p => p.id.toString() === selectedProduct)?.product_name || 'Loading...')}
+                        </div>
+                    </div>
+                    {selectedProduct !== 'ALL' && (
+                        <>
+                            <div className="h-8 w-px bg-gray-700"></div>
+                            <div>
+                                <span className="text-gray-400 text-xs uppercase tracking-wider">SKU</span>
+                                <div className="text-gray-300">
+                                    {products.find(p => p.id.toString() === selectedProduct)?.sku_id || '--'}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+                <div className="flex items-center">
+                    <span className="text-gray-400 text-xs uppercase tracking-wider mr-3">Time Interval</span>
+                    <Select value={timeInterval} onValueChange={setTimeInterval} className="w-36 dark-theme-select text-sm">
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                    </Select>
+                </div>
             </div>
 
             {/* Chart Area */}
@@ -272,7 +329,7 @@ Prompt: ${analysisPrompt}`);
                                     <Legend wrapperStyle={{ paddingTop: '20px' }}/>
 
                                     {/* Volume Bars */}
-                                    <Bar yAxisId="left" dataKey="volume" name="Daily Sales" fill="#3b82f6" opacity={0.3} barSize={20} />
+                                    <Bar yAxisId="left" dataKey="volume" name={`${timeInterval.charAt(0).toUpperCase() + timeInterval.slice(1)} Sales`} fill="#3b82f6" opacity={0.3} barSize={20} />
 
                                     {/* MA Lines */}
                                     {visibleMAs.MA3 && <Line yAxisId="left" type="monotone" dataKey="MA3" stroke="#818cf8" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
