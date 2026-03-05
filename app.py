@@ -384,6 +384,39 @@ def api_inventory():
 
     return jsonify(inventory_list)
 
+# API: Get All Products Inventory Overview
+@app.route('/api/inventory/all', methods=['GET'])
+@login_required
+def api_inventory_all():
+    products = Product.query.all()
+    inventory_list = []
+
+    for product in products:
+        # Calculate AMS (3-Month)
+        ams_3m = _calculate_ams(product.id, 90)
+
+        # Calculate stock across all locations
+        stock = product.total_stock
+
+        # Status Logic
+        if stock == 0:
+            status_display = "Critical"
+        elif stock < 50:
+            status_display = "Low Stock"
+        else:
+            status_display = "In Stock"
+
+        inventory_list.append({
+            'id': product.id,
+            'sku_id': product.model_code,
+            'product_name': product.product_name,
+            'total_stock': stock,
+            'ams_3m': ams_3m,
+            'status': status_display
+        })
+
+    return jsonify(inventory_list)
+
 # API: Add Product
 @app.route('/api/products', methods=['POST'])
 @login_required
@@ -617,6 +650,24 @@ def api_product_locations(product_id):
         if user_location_ids is not None and pl.location_id not in user_location_ids:
             continue
 
+        location_data.append({
+            'location_name': pl.location.description,
+            'location_code': pl.location.loc_code,
+            'type': pl.location.type,
+            'quantity': pl.quantity_on_hand
+        })
+    return jsonify(location_data)
+
+# API: Get Product Stock in ALL Locations
+@app.route('/api/inventory/<int:product_id>/all_locations', methods=['GET'])
+@login_required
+def api_product_all_locations(product_id):
+    product = Product.query.get(product_id)
+    if not product:
+        return jsonify({'error': 'Product not found'}), 404
+
+    location_data = []
+    for pl in product.product_locs:
         location_data.append({
             'location_name': pl.location.description,
             'location_code': pl.location.loc_code,

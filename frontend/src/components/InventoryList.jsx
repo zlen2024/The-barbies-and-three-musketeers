@@ -50,7 +50,7 @@ const InventoryList = () => {
       // Fetch both user locations and all products
       const [locationsRes, productsRes] = await Promise.all([
         axios.get('/api/locations'),
-        axios.get('/api/inventory')
+        axios.get('/api/inventory/all')
       ]);
 
       setUserLocations(locationsRes.data);
@@ -130,7 +130,7 @@ const InventoryList = () => {
         // Fetch locations if not already cached
         if (!locationsData[productId]) {
             try {
-                const res = await axios.get(`/api/inventory/${productId}/locations`);
+                const res = await axios.get(`/api/inventory/${productId}/all_locations`);
                 setLocationsData(prev => ({ ...prev, [productId]: res.data }));
             } catch (err) {
                 console.error("Failed to fetch locations", err);
