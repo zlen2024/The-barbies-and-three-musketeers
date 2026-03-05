@@ -1129,44 +1129,72 @@ def api_sales():
 @login_required
 @role_required('Sales')
 def api_sales_dashboard():
-    # Personal Sales (Verified or Paid)
+    user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
+    loc_ids = [ul.location_id for ul in user_locs]
+
+    # Personal Sales (Verified or Paid, limited to assigned locations)
     personal_sales = db.session.query(db.func.sum(Sale.total_amount)).filter(
         Sale.sold_by == current_user.id,
+        Sale.location_id.in_(loc_ids),
         Sale.status.in_(['Verified', 'Paid'])
     ).scalar() or 0.0
 
     # Team Sales (Verified or Paid, across assigned locations)
-    user_locs = UserLocation.query.filter_by(uid=current_user.id).all()
-    loc_ids = [ul.location_id for ul in user_locs]
     team_sales = db.session.query(db.func.sum(Sale.total_amount)).filter(
         Sale.location_id.in_(loc_ids),
         Sale.status.in_(['Verified', 'Paid'])
     ).scalar() or 0.0
 
-    # Detailed Distribution of Personal Sales (e.g. by status or location)
-    distribution_raw = db.session.query(
+    # 1. Sales by Location (Bar Chart data)
+    # Personal Sales, grouped by location.
+    location_sales_raw = db.session.query(
         Location.description, db.func.sum(Sale.total_amount)
     ).join(Location, Sale.location_id == Location.id).filter(
         Sale.sold_by == current_user.id,
+        Sale.location_id.in_(loc_ids),
         Sale.status.in_(['Verified', 'Paid'])
     ).group_by(Location.description).all()
 
-    distribution = [{'name': name, 'value': amount} for name, amount in distribution_raw]
+    # The mockup uses short codes like "NY", "LDN". We can map common descriptions or use the first word/code.
+    # To be safe, we'll just pass the description as the name, and the frontend can handle display.
+    sales_by_location = [{'name': loc, 'value': amount} for loc, amount in location_sales_raw]
 
-    # Alternatively by status
-    status_dist = db.session.query(
-        Sale.status, db.func.sum(Sale.total_amount)
-    ).filter(
-        Sale.sold_by == current_user.id
-    ).group_by(Sale.status).all()
+    # 2. Pipeline Velocity (Area Chart data)
+    # Personal Sales grouped by month.
+    # We will fetch all verified/paid personal sales and group them in Python by month.
+    # Doing it in python is DB agnostic (avoids sqlite vs postgres strftime differences).
+    from datetime import datetime
+    all_personal_sales = Sale.query.filter(
+        Sale.sold_by == current_user.id,
+        Sale.location_id.in_(loc_ids),
+        Sale.status.in_(['Verified', 'Paid'])
+    ).all()
 
-    status_distribution = [{'name': status, 'value': amount} for status, amount in status_dist]
+    # Group by YYYY-MM
+    monthly_sales = {}
+    for s in all_personal_sales:
+        if s.sale_date:
+            month_key = s.sale_date.strftime('%Y-%m') # e.g. "2023-10"
+            monthly_sales[month_key] = monthly_sales.get(month_key, 0.0) + s.total_amount
+
+    # Sort keys to ensure chronological order and format output
+    # Mockup shows Jan, Feb, Mar etc. We'll pass the YYYY-MM and let frontend parse/format it,
+    # or pass a 'month' string.
+    pipeline_velocity = []
+    for m_key in sorted(monthly_sales.keys()):
+        # Parse back to get month name
+        d = datetime.strptime(m_key, '%Y-%m')
+        pipeline_velocity.append({
+            'month': d.strftime('%b').upper(), # 'JAN', 'FEB'
+            'full_date': m_key,
+            'sales': monthly_sales[m_key]
+        })
 
     return jsonify({
         'personalSales': personal_sales,
         'teamSales': team_sales,
-        'locationDistribution': distribution,
-        'statusDistribution': status_distribution
+        'salesByLocation': sales_by_location,
+        'pipelineVelocity': pipeline_velocity
     })
 
 @app.route('/api/sales/<int:sale_id>/status', methods=['PUT'])
