@@ -101,17 +101,17 @@ def api_login():
     username_or_email = data.get('email') # Frontend sends 'email' field
     password = data.get('password')
 
-    # Try matching username first
+    # Try matching username first, then email
     user = User.query.filter_by(username=username_or_email).first()
+    if not user:
+        user = User.query.filter_by(email=username_or_email).first()
 
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
 
     login_user(user)
-    # user.last_login = datetime.utcnow() # User model doesn't have last_login anymore in new schema
-    # db.session.commit()
 
-    return jsonify({'success': True, 'role': user.role, 'username': user.username, 'user_id': user.id})
+    return jsonify({'success': True, 'role': user.role, 'username': user.username, 'email': user.email, 'user_id': user.id})
 
 # API: Logout
 @app.route('/api/logout', methods=['POST'])
@@ -1122,6 +1122,143 @@ def serve(path):
         return send_from_directory(app.static_folder, path)
     else:
         return send_from_directory(app.static_folder, 'index.html')
+
+
+# API: Get Workspace Team
+@app.route('/api/workspace/team', methods=['GET'])
+@login_required
+def api_workspace_team():
+    user = current_user
+    user_locations = UserLocation.query.filter_by(uid=user.id).all()
+    location_ids = [ul.location_id for ul in user_locations]
+
+    if user.role == 'Manager':
+        # Manager gets all members from all assigned locations, grouped by location
+        team_data = []
+        for loc_id in location_ids:
+            loc = Location.query.get(loc_id)
+            if loc:
+                uls = UserLocation.query.filter_by(location_id=loc_id).all()
+                members = []
+                for ul in uls:
+                    member_user = User.query.get(ul.uid)
+                    if member_user:
+                        members.append({
+                            'id': member_user.id,
+                            'username': member_user.username,
+                            'email': member_user.email,
+                            'role': member_user.role
+                        })
+                team_data.append({
+                    'location_id': loc.id,
+                    'location_name': loc.description,
+                    'members': members
+                })
+        return jsonify({'success': True, 'team_grouped': team_data})
+    else:
+        # Non-manager gets a flat list of members in the same location(s)
+        team_members_ids = set()
+        for loc_id in location_ids:
+            uls = UserLocation.query.filter_by(location_id=loc_id).all()
+            for ul in uls:
+                team_members_ids.add(ul.uid)
+
+        members = []
+        for uid in team_members_ids:
+            member_user = User.query.get(uid)
+            if member_user:
+                members.append({
+                    'id': member_user.id,
+                    'username': member_user.username,
+                    'email': member_user.email,
+                    'role': member_user.role
+                })
+        return jsonify({'success': True, 'team': members})
+
+# API: Workspace Users list for assignment Dropdown
+@app.route('/api/workspace/users', methods=['GET'])
+@login_required
+@role_required('Manager')
+def api_workspace_users():
+    users = User.query.all()
+    user_data = [{'id': u.id, 'username': u.username, 'email': u.email, 'role': u.role} for u in users]
+    return jsonify({'success': True, 'users': user_data})
+
+# API: Mail Endpoints
+from models import InternalMail
+
+@app.route('/api/workspace/mail/inbox', methods=['GET'])
+@login_required
+def api_mail_inbox():
+    mails = InternalMail.query.filter_by(receiver_id=current_user.id).order_by(InternalMail.timestamp.desc()).all()
+    mail_data = []
+    for m in mails:
+        sender = User.query.get(m.sender_id)
+        mail_data.append({
+            'id': m.id,
+            'sender_name': sender.username if sender else 'Unknown',
+            'sender_email': sender.email if sender else '',
+            'subject': m.subject,
+            'body': m.body,
+            'timestamp': m.timestamp.isoformat(),
+            'is_read': m.is_read
+        })
+    return jsonify({'success': True, 'mails': mail_data})
+
+@app.route('/api/workspace/mail/sent', methods=['GET'])
+@login_required
+def api_mail_sent():
+    mails = InternalMail.query.filter_by(sender_id=current_user.id).order_by(InternalMail.timestamp.desc()).all()
+    mail_data = []
+    for m in mails:
+        receiver = User.query.get(m.receiver_id)
+        mail_data.append({
+            'id': m.id,
+            'receiver_name': receiver.username if receiver else 'Unknown',
+            'receiver_email': receiver.email if receiver else '',
+            'subject': m.subject,
+            'body': m.body,
+            'timestamp': m.timestamp.isoformat(),
+            'is_read': m.is_read
+        })
+    return jsonify({'success': True, 'mails': mail_data})
+
+@app.route('/api/workspace/mail/send', methods=['POST'])
+@login_required
+def api_mail_send():
+    data = request.json
+    receiver_id = data.get('receiver_id')
+    subject = data.get('subject')
+    body = data.get('body')
+
+    if not receiver_id or not subject or not body:
+        return jsonify({'success': False, 'message': 'Missing fields'}), 400
+
+    receiver = User.query.get(receiver_id)
+    if not receiver:
+        return jsonify({'success': False, 'message': 'Receiver not found'}), 404
+
+    new_mail = InternalMail(
+        sender_id=current_user.id,
+        receiver_id=receiver_id,
+        subject=subject,
+        body=body
+    )
+    db.session.add(new_mail)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Mail sent successfully'})
+
+@app.route('/api/workspace/mail/<int:mail_id>/read', methods=['POST'])
+@login_required
+def api_mail_mark_read(mail_id):
+    mail = InternalMail.query.get(mail_id)
+    if not mail or mail.receiver_id != current_user.id:
+        return jsonify({'success': False, 'message': 'Mail not found'}), 404
+
+    mail.is_read = True
+    db.session.commit()
+    return jsonify({'success': True})
 
 if __name__ == '__main__':
     # No db.create_all() here, relying on seed script

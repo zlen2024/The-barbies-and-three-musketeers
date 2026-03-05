@@ -24,6 +24,7 @@ const Login = () => {
         // Store user role or token if needed, but session cookie is handled by browser
         localStorage.setItem('userRole', response.data.role);
         localStorage.setItem('username', response.data.username);
+        localStorage.setItem('userEmail', response.data.email);
         localStorage.setItem('userId', response.data.user_id);
         navigate('/dashboard');
       } else {
