@@ -810,38 +810,28 @@ def api_forecast_data():
     today = datetime.now()
     start_date = today - timedelta(days=90)
 
-    # Simple mock data generation based on actual data if available, or just mock it for visual purposes if no actual sales
-    # The current DB seed might not have daily sales, only aggregated or a few entries. Let's mock a rich daily dataset.
+    # Fetch actual sales from database
+    sales_data = db.session.query(
+        db.func.date(Sale.sale_date).label('date'),
+        db.func.sum(SaleItem.quantity).label('total_quantity')
+    ) \
+    .join(SaleItem, SaleItem.sale_id == Sale.id) \
+    .filter(SaleItem.pl_id == product_loc.id, Sale.sale_date >= start_date) \
+    .group_by(db.func.date(Sale.sale_date)).all()
 
-    import random
-
-    # We will generate mock data for 90 days.
-    # In a real app, you would query:
-    # sales = db.session.query(db.func.date(Sale.sale_date), db.func.sum(SaleItem.quantity)) \
-    #            .join(SaleItem, SaleItem.sale_id == Sale.id) \
-    #            .filter(SaleItem.pl_id == product_loc.id, Sale.sale_date >= start_date) \
-    #            .group_by(db.func.date(Sale.sale_date)).all()
+    sales_dict = {str(sale.date): sale.total_quantity for sale in sales_data}
 
     chart_data = []
-    base_sales = random.randint(10, 50)
-
     daily_sales_raw = []
 
     for i in range(90, -1, -1):
         target_date = today - timedelta(days=i)
+        date_str = target_date.strftime("%Y-%m-%d")
 
-        # Add some random walk to sales to make it look like a real chart
-        change = random.randint(-5, 6)
-        base_sales = max(0, base_sales + change)
-
-        # Add weekly seasonality (lower on weekends)
-        if target_date.weekday() >= 5:
-            daily_vol = max(0, int(base_sales * 0.5))
-        else:
-            daily_vol = base_sales
+        daily_vol = sales_dict.get(date_str, 0)
 
         daily_sales_raw.append({
-            'date': target_date.strftime("%Y-%m-%d"),
+            'date': date_str,
             'volume': daily_vol,
             'raw_val': daily_vol
         })
