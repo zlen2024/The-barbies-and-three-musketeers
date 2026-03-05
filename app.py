@@ -1439,6 +1439,214 @@ def api_mail_mark_read(mail_id):
     db.session.commit()
     return jsonify({'success': True})
 
+
+from sqlalchemy import func
+
+@app.route('/api/warehouse/summary', methods=['GET'])
+@login_required
+def api_warehouse_summary():
+    user_id = current_user.id
+    location_id = request.args.get('location_id')
+
+    if not location_id:
+        return jsonify({'success': False, 'message': 'Location ID is required'}), 400
+
+    ul = UserLocation.query.filter_by(uid=user_id, location_id=location_id).first()
+    if not ul and current_user.role != 'Admin':
+        return jsonify({'success': False, 'message': 'Unauthorized access to location'}), 403
+
+    location = Location.query.get(location_id)
+    if not location:
+        return jsonify({'success': False, 'message': 'Location not found'}), 404
+
+    location_ul_ids = [ul_item.ul_id for ul_item in UserLocation.query.filter_by(location_id=location_id).all()]
+    if not location_ul_ids:
+        location_ul_ids = [0]
+
+    try:
+        # 1. Total Sales (Amount)
+        total_sales = db.session.query(func.sum(Sale.total_amount)).filter_by(location_id=location_id).scalar() or 0.0
+
+        # 2. Total Items Sold
+        total_items_sold = db.session.query(func.sum(SaleItem.quantity)).join(Sale).filter(Sale.location_id == location_id).scalar() or 0
+
+        # 3. Total Stock (across all products at this location)
+        product_locs = ProductLoc.query.filter_by(location_id=location_id).all()
+        total_stock = sum([pl.quantity_on_hand for pl in product_locs])
+
+        # 4. Stock by Category
+        stock_by_category_dict = {}
+        for pl in product_locs:
+            product = Product.query.get(pl.product_id)
+            if product:
+                cat = product.category or 'Uncategorized'
+                stock_by_category_dict[cat] = stock_by_category_dict.get(cat, 0) + pl.quantity_on_hand
+
+        stock_by_category = [{"category": k, "stock": v} for k, v in stock_by_category_dict.items()]
+
+        # 5. Products available in this location
+        products_list = []
+        for pl in product_locs:
+            product = Product.query.get(pl.product_id)
+            if product:
+                incoming = ProductOrder.query.join(ProductVendor).filter(ProductVendor.product_id == product.id, ProductOrder.ul_id.in_(location_ul_ids)).filter(ProductOrder.status.in_(['Pending', 'Processing', 'Ordered', 'Shipped'])).with_entities(func.sum(ProductOrder.order_qty)).scalar() or 0
+                products_list.append({
+                    "id": product.id,
+                    "sku": product.model_code,
+                    "name": product.product_name,
+                    "category": product.category,
+                    "current_stock": pl.quantity_on_hand,
+                    "incoming_stock": int(incoming)
+                })
+
+        return jsonify({
+            'success': True,
+            'location': {
+                'id': location.id,
+                'loc_code': location.loc_code,
+                'description': location.description
+            },
+            'data': {
+                'total_sales': float(total_sales),
+                'total_items_sold': total_items_sold,
+                'total_stock': total_stock,
+                'stock_by_category': stock_by_category,
+                'products': products_list
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
+@app.route('/api/warehouse/product_stats', methods=['GET'])
+@login_required
+def api_warehouse_product_stats():
+    user_id = current_user.id
+    location_id = request.args.get('location_id')
+    product_id = request.args.get('product_id')
+
+    if not location_id or not product_id:
+        return jsonify({'success': False, 'message': 'Location ID and Product ID are required'}), 400
+
+    ul = UserLocation.query.filter_by(uid=user_id, location_id=location_id).first()
+    if not ul and current_user.role != 'Admin':
+        return jsonify({'success': False, 'message': 'Unauthorized access to location'}), 403
+
+    location_ul_ids = [ul_item.ul_id for ul_item in UserLocation.query.filter_by(location_id=location_id).all()]
+    if not location_ul_ids:
+        location_ul_ids = [0]
+
+    location = Location.query.get(location_id)
+    product = Product.query.get(product_id)
+
+    if not location or not product:
+        return jsonify({'success': False, 'message': 'Location or Product not found'}), 404
+
+    try:
+        # Current stock at this location
+        pl = ProductLoc.query.filter_by(product_id=product_id, location_id=location_id).first()
+        current_stock = pl.quantity_on_hand if pl else 0
+
+        # Incoming stock at this location
+        incoming = ProductOrder.query.join(ProductVendor).filter(ProductVendor.product_id == product_id, ProductOrder.ul_id.in_(location_ul_ids)).filter(ProductOrder.status.in_(['Pending', 'Processing', 'Ordered', 'Shipped'])).with_entities(func.sum(ProductOrder.order_qty)).scalar() or 0
+
+        reserved = 0 # Can be implemented based on pending sales or allocations
+
+        # Sales history (last 30 days) at this location
+        from datetime import datetime, timedelta
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+
+        sales_data = db.session.query(
+            func.date(Sale.sale_date).label('date'),
+            func.sum(SaleItem.quantity).label('total_qty')
+        ).join(SaleItem, SaleItem.sale_id == Sale.id).join(ProductLoc, SaleItem.pl_id == ProductLoc.id).filter(
+            Sale.location_id == location_id,
+            ProductLoc.product_id == product_id,
+            Sale.sale_date >= thirty_days_ago
+        ).group_by(func.date(Sale.sale_date)).order_by(func.date(Sale.sale_date)).all()
+
+        sales_history = []
+        date_dict = {str(item.date): int(item.total_qty) for item in sales_data}
+
+        # Fill in zero days
+        total_30d_sales = 0
+        for i in range(30, -1, -1):
+            d = (datetime.utcnow() - timedelta(days=i)).strftime('%Y-%m-%d')
+            qty = date_dict.get(d, 0)
+            sales_history.append({"date": d, "sales": qty})
+            total_30d_sales += qty
+
+        avg_daily_sales = total_30d_sales / 30.0
+
+        # Recent activity
+        activities = []
+
+        # Recent sales
+        recent_sales = db.session.query(Sale).join(SaleItem, SaleItem.sale_id == Sale.id).join(ProductLoc, SaleItem.pl_id == ProductLoc.id).filter(
+            Sale.location_id == location_id,
+            ProductLoc.product_id == product_id
+        ).order_by(Sale.sale_date.desc()).limit(3).all()
+
+        for sale in recent_sales:
+            for item in sale.items:
+                pl_item = ProductLoc.query.get(item.pl_id)
+                if pl_item and str(pl_item.product_id) == str(product_id):
+                    activities.append({
+                        "date": sale.sale_date.strftime('%Y-%m-%d'),
+                        "description": f"Sold {item.quantity} units",
+                        "type": "SALE",
+                        "timestamp": sale.sale_date
+                    })
+
+        # Recent POs
+        recent_pos = ProductOrder.query.join(ProductVendor).filter(
+            ProductOrder.ul_id.in_(location_ul_ids),
+            ProductVendor.product_id == product_id
+        ).order_by(ProductOrder.created_at.desc()).limit(3).all()
+
+        for po in recent_pos:
+            status_type = "RESTOCK" if po.status in ["Delivered", "Received"] else "ORDER"
+            activities.append({
+                "date": (po.ets_date.strftime('%Y-%m-%d') if po.ets_date else po.created_at.strftime('%Y-%m-%d')),
+                "description": f"PO {po.po_reference} ({po.status}): {po.order_qty} units",
+                "type": status_type,
+                "timestamp": po.ets_date or po.created_at or datetime.utcnow()
+            })
+
+        activities.sort(key=lambda x: x["timestamp"], reverse=True)
+        for a in activities:
+            del a["timestamp"]
+
+        return jsonify({
+            'success': True,
+            'location': {
+                'id': location.id,
+                'loc_code': location.loc_code,
+                'description': location.description
+            },
+            'data': {
+                'id': product.id,
+                'sku': product.model_code,
+                'name': product.product_name,
+                'category': product.category,
+                'brand': product.brand,
+                'status': product.status,
+                'current_stock': current_stock,
+                'incoming_stock': int(incoming),
+                'reserved_stock': reserved,
+                'avg_daily_sales': avg_daily_sales,
+                'sales_history': sales_history,
+                'recent_activities': activities[:5]
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
+
+
 if __name__ == '__main__':
     # No db.create_all() here, relying on seed script
     app.run(debug=True)

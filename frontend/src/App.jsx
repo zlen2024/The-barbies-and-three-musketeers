@@ -9,6 +9,7 @@ import Suppliers from './components/Suppliers';
 import Orders from './components/Orders';
 import OrderDetail from './components/OrderDetail';
 import Workspace from './components/Workspace';
+import Warehouse from './components/Warehouse';
 import SalesHub from './components/SalesHub';
 import { ToastContainer } from 'react-toastify';
 import './index.css';
@@ -50,6 +51,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ProductDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory/warehouse"
+          element={
+            <ProtectedRoute>
+              <Warehouse />
             </ProtectedRoute>
           }
         />
