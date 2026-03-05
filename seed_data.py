@@ -1,5 +1,5 @@
 from app import app, db
-from models import User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, SaleItem, Forecast, UserLocation, Invoice
+from models import User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, SaleItem, Forecast, UserLocation, Invoice, InternalMail
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 import random
@@ -15,10 +15,10 @@ def seed_database():
         print("Seeding Users...")
         # Users
         users = [
-            User(username='admin', password_hash=generate_password_hash('password'), role='Admin'),
-            User(username='warehouse', password_hash=generate_password_hash('password'), role='Warehouse'),
-            User(username='sales', password_hash=generate_password_hash('password'), role='Sales'),
-            User(username='manager', password_hash=generate_password_hash('password'), role='Manager')
+            User(username='admin', email='admin@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Admin'),
+            User(username='warehouse', email='warehouse@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Warehouse'),
+            User(username='sales', email='sales@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Sales'),
+            User(username='manager', email='manager@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Manager')
         ]
         db.session.add_all(users)
         db.session.commit()
@@ -257,6 +257,15 @@ def seed_database():
                  smart_why_rationale=f"Simulated AI rationale for {prod.model_code} based on recent sales velocity."
              ))
         db.session.add_all(forecasts)
+        db.session.commit()
+
+        print("Seeding Internal Mail...")
+        mails = [
+            InternalMail(sender_id=users[3].id, receiver_id=users[1].id, subject='Warehouse Check', body='Please ensure the main warehouse has enough HT-PLATZ-450-H.'),
+            InternalMail(sender_id=users[3].id, receiver_id=users[2].id, subject='Sales Target', body='Great job on the sales this week, let us keep the momentum going.'),
+            InternalMail(sender_id=users[1].id, receiver_id=users[3].id, subject='Re: Warehouse Check', body='Stock levels checked. We are running low on CH-SINK-SS-1, need to reorder.'),
+        ]
+        db.session.add_all(mails)
         db.session.commit()
 
         print("Database seeded successfully!")

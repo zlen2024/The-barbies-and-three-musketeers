@@ -8,9 +8,8 @@ import ProductForecast from './components/ProductForecast';
 import Suppliers from './components/Suppliers';
 import Orders from './components/Orders';
 import OrderDetail from './components/OrderDetail';
-import Profile from './components/Profile';
+import Workspace from './components/Workspace';
 import SalesHub from './components/SalesHub';
-import TeamManagement from './components/TeamManagement';
 import { ToastContainer } from 'react-toastify';
 import './index.css';
 
@@ -87,10 +86,10 @@ function App() {
           }
         />
         <Route
-          path="/profile"
+          path="/workspace"
           element={
             <ProtectedRoute>
-              <Profile />
+              <Workspace />
             </ProtectedRoute>
           }
         />
@@ -99,14 +98,6 @@ function App() {
           element={
             <ProtectedRoute>
               <SalesHub />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/team-management"
-          element={
-            <ProtectedRoute>
-              <TeamManagement />
             </ProtectedRoute>
           }
         />
