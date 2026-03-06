@@ -15,13 +15,18 @@ import { ToastContainer } from 'react-toastify';
 import './index.css';
 
 // Simple Protected Route Component
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedRoles }) => {
   // In a real app, check for token/session validity
   // Here we just check if userRole exists in localStorage for demo
   const userRole = localStorage.getItem('userRole');
   if (!userRole) {
     return <Navigate to="/" replace />;
   }
+
+  if (allowedRoles && !allowedRoles.includes(userRole)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return children;
 };
 
@@ -73,7 +78,7 @@ function App() {
         <Route
           path="/suppliers"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['Admin', 'Manager', 'Warehouse', 'Procurement']}>
               <Suppliers />
             </ProtectedRoute>
           }
