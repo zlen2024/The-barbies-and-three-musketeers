@@ -5,8 +5,8 @@ import { ArrowRight, TrendingUp, AlertCircle, ShoppingCart, DollarSign, BrainCir
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-const valueFormatter = (number) => `$ ${new Intl.NumberFormat("us").format(number).toString()}`;
-const numberFormatter = (number) => `${new Intl.NumberFormat("us").format(number).toString()}`;
+const valueFormatter = (number) => `$ ${new Intl.NumberFormat("en-US").format(number).toString()}`;
+const numberFormatter = (number) => `${new Intl.NumberFormat("en-US").format(number).toString()}`;
 
 const Dashboard = () => {
   const role = localStorage.getItem('userRole') || 'Staff';

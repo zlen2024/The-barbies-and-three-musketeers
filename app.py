@@ -32,7 +32,8 @@ db.init_app(app)
 # Start the background forecast scheduler immediately upon app instantiation
 # so it runs under gunicorn as well.
 from scheduler import init_scheduler
-init_scheduler()
+# Need to pass the actual unproxied app object to threading logic
+init_scheduler(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
