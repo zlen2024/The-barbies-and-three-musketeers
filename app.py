@@ -47,6 +47,17 @@ def log_request_info():
             user_info = f"User: {current_user.username} (Role: {current_user.role}, ID: {current_user.id})"
         logger.info(f"Incoming Request: {request.method} {request.path} | {user_info}")
 
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:;"
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    return response
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     # Log the full stack trace
