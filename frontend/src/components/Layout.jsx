@@ -12,9 +12,12 @@ const Layout = ({ children, isFixed = false, isDark = false }) => {
     { name: 'Dashboard', path: '/dashboard', icon: LayoutGrid },
     { name: 'Inventory', path: '/inventory', icon: Package },
     { name: 'Forecast', path: '/forecast', icon: LineChart },
-    { name: 'Suppliers', path: '/suppliers', icon: Truck },
     { name: 'Orders', path: '/orders', icon: ShoppingCart },
   ];
+
+  if (role !== 'Sales') {
+      baseNavItems.splice(3, 0, { name: 'Suppliers', path: '/suppliers', icon: Truck });
+  }
 
   if (role === 'Sales') {
       baseNavItems.push({ name: 'Sales Hub', path: '/sales-hub', icon: DollarSign });

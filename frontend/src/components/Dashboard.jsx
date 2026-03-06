@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Layout from './Layout';
 import { Card, Title, Text, LineChart, Metric, Flex, Badge, Button, Callout } from "@tremor/react";
+import { Link } from 'react-router-dom';
 import { ArrowRight, TrendingUp, AlertCircle, ShoppingCart, DollarSign, BrainCircuit } from 'lucide-react';
 import axios from 'axios';
 
@@ -122,8 +123,15 @@ const Dashboard = () => {
 
         {/* Main Chart */}
         <Card>
-            <Title>Historical Sales vs. AI Predictions</Title>
-            <Text>Comparison of actual sales performance against AI forecasting models.</Text>
+            <div className="flex justify-between items-center">
+                <div>
+                    <Title>Historical Sales vs. AI Predictions</Title>
+                    <Text>Comparison of actual sales performance against AI forecasting models.</Text>
+                </div>
+                <Link to="/forecast">
+                    <Button size="xs" variant="secondary" icon={TrendingUp}>Go to Forecast</Button>
+                </Link>
+            </div>
             <LineChart
                 className="mt-6 h-72"
                 data={data?.chartData}

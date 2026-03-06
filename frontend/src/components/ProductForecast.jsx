@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import { Card, Title, Text, Button, Select, SelectItem, TextInput, Textarea, Metric, Callout } from "@tremor/react";
-import { Search, Loader2, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { Search, Loader2, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react';
 import axios from 'axios';
 import {
   ComposedChart,
@@ -293,15 +293,34 @@ const ProductForecast = () => {
                     <>
                         {/* KPI Cards Row */}
                         {kpi && Object.keys(kpi).length > 0 && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <Card decoration="top" decorationColor="indigo" className="bg-gray-900 border-gray-800">
-                                    <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Demand Momentum</Text>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-visible">
+                                <Card decoration="top" decorationColor="indigo" className="bg-gray-900 border-gray-800 overflow-visible relative group">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <Text className="text-gray-400 uppercase text-xs font-semibold tracking-wider">Demand Momentum</Text>
+                                        <HelpCircle className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                                        <div className="absolute top-10 right-0 z-50 w-64 p-3 bg-gray-800 text-xs text-gray-200 rounded shadow-xl border border-gray-700 hidden group-hover:block">
+                                            <p className="font-semibold mb-1 text-indigo-400">Formula:</p>
+                                            <code className="text-[10px] bg-gray-900 p-1 rounded block mb-2">(MA3 - MA7) / MA7</code>
+                                            <p>Indicates short-term acceleration relative to medium-term trend.</p>
+                                        </div>
+                                    </div>
                                     <Metric className="text-white font-bold">{renderValue(kpi.DemandMomentum, true)}</Metric>
                                     <div className="mt-2 text-sm text-gray-500">Growth: {renderValue(kpi.GrowthRate, true)}</div>
                                 </Card>
 
-                                <Card decoration="top" decorationColor={kpi.TrendLogic === 'Uptrend' ? 'emerald' : kpi.TrendLogic === 'Downtrend' ? 'rose' : 'gray'} className="bg-gray-900 border-gray-800">
-                                    <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Trend & Volatility</Text>
+                                <Card decoration="top" decorationColor={kpi.TrendLogic === 'Uptrend' ? 'emerald' : kpi.TrendLogic === 'Downtrend' ? 'rose' : 'gray'} className="bg-gray-900 border-gray-800 overflow-visible relative group">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <Text className="text-gray-400 uppercase text-xs font-semibold tracking-wider">Trend & Volatility</Text>
+                                        <HelpCircle className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                                        <div className="absolute top-10 right-0 z-50 w-64 p-3 bg-gray-800 text-xs text-gray-200 rounded shadow-xl border border-gray-700 hidden group-hover:block">
+                                            <p className="font-semibold mb-1 text-emerald-400">Formulas:</p>
+                                            <ul className="list-disc pl-3 mb-2 space-y-1">
+                                                <li><code className="text-[10px] bg-gray-900 px-1 rounded">Trend = MA3 > MA7 > MA14</code></li>
+                                                <li><code className="text-[10px] bg-gray-900 px-1 rounded">Volatility = StdDev(last 7) / Mean(last 7)</code></li>
+                                            </ul>
+                                            <p>Assess trend direction and historical price fluctuation (CV).</p>
+                                        </div>
+                                    </div>
                                     <div className="flex items-center">
                                         {kpi.TrendLogic === 'Uptrend' && <TrendingUp className="h-6 w-6 text-emerald-500 mr-2" />}
                                         {kpi.TrendLogic === 'Downtrend' && <TrendingDown className="h-6 w-6 text-rose-500 mr-2" />}
@@ -310,14 +329,30 @@ const ProductForecast = () => {
                                     <div className="mt-2 text-sm text-gray-500">Volatility: {renderValue(kpi.Volatility)} | Range: {renderValue(kpi.Range)}</div>
                                 </Card>
 
-                                <Card decoration="top" decorationColor="amber" className="bg-gray-900 border-gray-800">
-                                    <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Inventory Health</Text>
+                                <Card decoration="top" decorationColor="amber" className="bg-gray-900 border-gray-800 overflow-visible relative group">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <Text className="text-gray-400 uppercase text-xs font-semibold tracking-wider">Inventory Health</Text>
+                                        <HelpCircle className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                                        <div className="absolute top-10 right-0 z-50 w-64 p-3 bg-gray-800 text-xs text-gray-200 rounded shadow-xl border border-gray-700 hidden group-hover:block">
+                                            <p className="font-semibold mb-1 text-amber-400">Formula:</p>
+                                            <code className="text-[10px] bg-gray-900 p-1 rounded block mb-2">Coverage = Current Stock / max(MA7, 1)</code>
+                                            <p>Number of periods current stock will last based on the 7-period moving average of sales.</p>
+                                        </div>
+                                    </div>
                                     <Metric className="text-white font-bold">{renderValue(kpi.StockCoverage)} <span className="text-sm font-normal text-gray-500">periods</span></Metric>
                                     <div className="mt-2 text-sm text-gray-500">Stock: {renderValue(kpi.CurrentStock)} | MA7: {renderValue(kpi.MA7)}</div>
                                 </Card>
 
-                                <Card decoration="top" decorationColor="blue" className="bg-gray-900 border-gray-800">
-                                    <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Volume (Last 7 Periods)</Text>
+                                <Card decoration="top" decorationColor="blue" className="bg-gray-900 border-gray-800 overflow-visible relative group">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <Text className="text-gray-400 uppercase text-xs font-semibold tracking-wider">Volume (Last 7)</Text>
+                                        <HelpCircle className="h-4 w-4 text-gray-500 hover:text-gray-300 cursor-help" />
+                                        <div className="absolute top-10 right-0 z-50 w-64 p-3 bg-gray-800 text-xs text-gray-200 rounded shadow-xl border border-gray-700 hidden group-hover:block">
+                                            <p className="font-semibold mb-1 text-blue-400">Formula:</p>
+                                            <code className="text-[10px] bg-gray-900 p-1 rounded block mb-2">Net = RollingSum(7) - CurrentStock</code>
+                                            <p>Total units sold over the last 7 periods, and remaining demand vs current inventory.</p>
+                                        </div>
+                                    </div>
                                     <Metric className="text-white font-bold">{renderValue(kpi.RollingSum7)}</Metric>
                                     <div className="mt-2 text-sm text-gray-500">Net Demand: {renderValue(kpi.NetDemand)}</div>
                                 </Card>
