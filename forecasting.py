@@ -123,9 +123,17 @@ def schedule_forecasting(app):
     """
     from apscheduler.schedulers.background import BackgroundScheduler
     import atexit
+    import threading
 
-    # Run once immediately
-    thread = threading.Thread(target=run_forecast_task, args=(app,))
+    def delayed_run():
+        import time
+        # Delay initial run slightly to allow seed_data.py to create the database tables
+        print("Waiting 10 seconds before starting background forecast task to allow database seeding...")
+        time.sleep(10)
+        run_forecast_task(app)
+
+    # Run once immediately (after delay)
+    thread = threading.Thread(target=delayed_run)
     thread.daemon = True
     thread.start()
 
