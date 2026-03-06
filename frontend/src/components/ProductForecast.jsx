@@ -315,7 +315,7 @@ const ProductForecast = () => {
                                         <div className="absolute top-10 right-0 z-50 w-64 p-3 bg-gray-800 text-xs text-gray-200 rounded shadow-xl border border-gray-700 hidden group-hover:block">
                                             <p className="font-semibold mb-1 text-emerald-400">Formulas:</p>
                                             <ul className="list-disc pl-3 mb-2 space-y-1">
-                                                <li><code className="text-[10px] bg-gray-900 px-1 rounded">Trend = MA3 > MA7 > MA14</code></li>
+                                                <li><code className="text-[10px] bg-gray-900 px-1 rounded">Trend = MA3 &gt; MA7 &gt; MA14</code></li>
                                                 <li><code className="text-[10px] bg-gray-900 px-1 rounded">Volatility = StdDev(last 7) / Mean(last 7)</code></li>
                                             </ul>
                                             <p>Assess trend direction and historical price fluctuation (CV).</p>
