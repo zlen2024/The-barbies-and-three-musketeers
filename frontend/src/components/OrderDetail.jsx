@@ -28,7 +28,10 @@ const OrderDetail = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
+  const [receiving, setReceiving] = useState(false);
   const navigate = useNavigate();
+
+  const userRole = localStorage.getItem('userRole');
 
   const fetchOrderDetail = async () => {
     try {
@@ -57,6 +60,21 @@ const OrderDetail = () => {
           alert("Error confirming order: " + (e.response?.data?.message || e.message));
       } finally {
           setConfirming(false);
+      }
+  };
+
+  const handleConfirmReceived = async () => {
+      if (!window.confirm("Are you sure you want to mark this order as received?")) return;
+
+      setReceiving(true);
+      try {
+          await axios.post(`/api/orders/${orderId}/receive`);
+          alert("Order marked as received successfully!");
+          fetchOrderDetail(); // Refresh data
+      } catch (e) {
+          alert("Error confirming receipt: " + (e.response?.data?.message || e.message));
+      } finally {
+          setReceiving(false);
       }
   };
 
@@ -122,8 +140,8 @@ const OrderDetail = () => {
                               )}
                           </div>
                       </div>
-                      <div className="mt-4 sm:mt-0">
-                          {order.confirmation_status === 'Pending' && (
+                      <div className="mt-4 sm:mt-0 flex gap-2">
+                          {order.confirmation_status === 'Pending' && (userRole === 'Manager' || userRole === 'Admin') && (
                               <Button
                                 size="lg"
                                 color="emerald"
@@ -132,6 +150,17 @@ const OrderDetail = () => {
                                 disabled={confirming}
                               >
                                   {confirming ? 'Confirming...' : 'Confirm Order'}
+                              </Button>
+                          )}
+                          {order.status === 'Shipped' && (userRole === 'Warehouse' || userRole === 'Admin') && (
+                              <Button
+                                size="lg"
+                                color="emerald"
+                                icon={Package}
+                                onClick={handleConfirmReceived}
+                                disabled={receiving}
+                              >
+                                  {receiving ? 'Receiving...' : 'Confirm Received'}
                               </Button>
                           )}
                       </div>

@@ -32,7 +32,7 @@ db.init_app(app)
 # Start the background forecast scheduler immediately upon app instantiation
 # so it runs under gunicorn as well.
 from scheduler import init_scheduler
-init_scheduler()
+init_scheduler(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
@@ -803,6 +803,7 @@ def api_order_detail(order_id):
 # API: Confirm Order
 @app.route('/api/orders/<int:order_id>/confirm', methods=['POST'])
 @login_required
+@role_required('Manager', 'Admin')
 def api_confirm_order(order_id):
     order = ProductOrder.query.get(order_id)
     if not order:
@@ -824,6 +825,30 @@ def api_confirm_order(order_id):
         db.session.rollback()
         logger.error(f"Failed to confirm Order ID {order_id}: {str(e)}\n")
         return jsonify({'success': False, 'message': 'Database error occurred while confirming Order'}), 500
+
+# API: Receive Order
+@app.route('/api/orders/<int:order_id>/receive', methods=['POST'])
+@login_required
+@role_required('Warehouse', 'Admin')
+def api_receive_order(order_id):
+    order = ProductOrder.query.get(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+
+    if order.status != 'Shipped':
+         return jsonify({'success': False, 'message': 'Order must be Shipped to be marked as Received'}), 400
+
+    order.status = 'Received'
+    # Optional: Logic to increase inventory stock here
+
+    try:
+        db.session.commit()
+        logger.info(f"Order marked as received successfully: ID {order_id} by user {current_user.username}")
+        return jsonify({'success': True, 'message': 'Order marked as received successfully'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to receive Order ID {order_id}: {str(e)}\n")
+        return jsonify({'success': False, 'message': 'Database error occurred while receiving Order'}), 500
 
 # API: Get Locations
 @app.route('/api/forecast/locations', methods=['GET'])
