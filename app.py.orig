@@ -1486,27 +1486,6 @@ def serve(path):
     else:
         return send_from_directory(app.static_folder, 'index.html')
 
-# API: Add User
-@app.route('/api/workspace/users', methods=['POST'])
-@login_required
-@role_required('Admin')
-def api_workspace_add_user():
-    data = request.json
-    username = data.get('username')
-    email = data.get('email')
-    password = data.get('password')
-    role = data.get('role')
-
-    if not username or not email or not password or not role:
-        return jsonify({'success': False, 'message': 'Missing fields'}), 400
-
-    if User.query.filter((User.username == username) | (User.email == email)).first():
-        return jsonify({'success': False, 'message': 'Username or email already exists'}), 400
-
-    new_user = User(username=username, email=email, password_hash=generate_password_hash(password), role=role)
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify({'success': True, 'message': 'User created successfully', 'user_id': new_user.id})
 
 # API: Get Workspace Team
 @app.route('/api/workspace/team', methods=['GET'])
