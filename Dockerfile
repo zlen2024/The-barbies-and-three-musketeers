@@ -22,7 +22,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
-COPY app.py models.py seed_data.py ./
+COPY app.py models.py seed_data.py azure_forecast.py scheduler.py ./
 # Copy built frontend assets
 # The build output is usually in `dist` relative to the frontend root.
 # So from Stage 1 (`/app/frontend/dist`) to Stage 2 (`/app/frontend/dist`).

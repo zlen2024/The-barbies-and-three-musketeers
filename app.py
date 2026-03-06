@@ -27,6 +27,11 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+
+# Start the background forecast scheduler immediately upon app instantiation
+# so it runs under gunicorn as well.
+from scheduler import init_scheduler
+init_scheduler()
 login_manager = LoginManager()
 login_manager.init_app(app)
 
@@ -161,51 +166,48 @@ def api_dashboard():
     ).scalar() or 0
 
     # 2. Predicted Demand
-    total_predicted_demand = db.session.query(db.func.sum(Forecast.projected_demand)).scalar() or 0
+    total_predicted_demand = db.session.query(db.func.sum(Forecast.projected_demand)).filter(Forecast.product_id != None).scalar() or 0
 
-    # 3. Chart Data (Sales by Month)
-    # Group by YYYY-MM
-    # SQLite strftime is %Y-%m
+    # 3. Chart Data (Sales by Week)
+    import json
+    from scheduler import get_historical_sales_data
 
-    # We need to aggregate sales by month for the last 6 months
-    today = datetime.now() # Use now() instead of utcnow()
     chart_data = []
 
-    for i in range(5, -1, -1):
-        # Calculate start and end of the month
-        # Logic: Go back i months.
-        # This is a bit rough for days, let's just pick month names.
-
-        target_month_date = today - timedelta(days=30*i)
-        month_str = target_month_date.strftime("%b")
-        month_num = target_month_date.strftime("%m")
-        year_num = target_month_date.strftime("%Y")
-
-        # Query sales for this month
-        # SQLite specific date string matching or range
-        # Let's filter by range
-
-        # Start of month
-        start_date = datetime(int(year_num), int(month_num), 1)
-        # End of month (start of next month)
-        if int(month_num) == 12:
-            end_date = datetime(int(year_num) + 1, 1, 1)
-        else:
-            end_date = datetime(int(year_num), int(month_num) + 1, 1)
-
-        actual_sales = db.session.query(db.func.sum(SaleItem.quantity)).join(Sale, Sale.id == SaleItem.sale_id).filter(
-            Sale.sale_date >= start_date,
-            Sale.sale_date < end_date
-        ).scalar() or 0
-
-        # Mock Prediction (slightly different from actual)
-        prediction = int(actual_sales * 1.05) + 50
-
+    # Get 140 days of historical data (weekly)
+    historical_sales = get_historical_sales_data(product_id=None, days=140)
+    for i, hs in enumerate(historical_sales):
+        dt = datetime.strptime(hs['timestamp'], '%Y-%m-%d')
+        # Only overlay the actuals on the AI Prediction line for the very last data point to ensure continuity
+        is_last = (i == len(historical_sales) - 1)
         chart_data.append({
-            "date": month_str,
-            "Actual Sales": actual_sales,
-            "AI Prediction": prediction
+            'date': dt.strftime("%Y-%m-%d"),
+            'Actual Sales': hs['value'],
+            'AI Prediction': hs['value'] if is_last else None
         })
+
+    # Check Azure Forecast from Database for System-wide (product_id = None)
+    system_forecast = Forecast.query.filter_by(product_id=None).first()
+    forecast_unavailable = True
+
+    if system_forecast and system_forecast.forecast_data:
+        try:
+            forecast_results = json.loads(system_forecast.forecast_data)
+            for f in forecast_results:
+                f_date = datetime.strptime(f['date'], "%Y-%m-%d")
+                chart_data.append({
+                    'date': f_date.strftime("%Y-%m-%d"),
+                    'Actual Sales': None,
+                    'AI Prediction': f['value']
+                })
+            forecast_unavailable = False
+        except Exception as e:
+            logger.error(f"Error parsing system forecast data: {e}")
+
+    if forecast_unavailable:
+        logger.warning("System-wide forecast data not available. Triggering background generation.")
+        from azure_forecast import trigger_forecast_generation
+        trigger_forecast_generation(current_app, None, historical_sales)
 
     # 4. Product Count
     product_count = Product.query.count()
@@ -216,7 +218,8 @@ def api_dashboard():
         'accuracy': "92.5%", # Mock
         'chartData': chart_data,
         'smartWhy': "Inventory turnover is optimal in Main Warehouse, but Online Channels are showing a 15% stockout risk for high-velocity items. Recommend rebalancing stock to channels.",
-        'productCount': product_count
+        'productCount': product_count,
+        'forecast_unavailable': forecast_unavailable
     }
     return jsonify(data)
 
@@ -313,32 +316,47 @@ def _get_sales_distribution(product_id):
     return [{'name': channel, 'value': quantity} for channel, quantity in sales_channels]
 
 def _get_monthly_sales_trend(product_id):
+    import json
+    from scheduler import get_historical_sales_data
+
     sales_trend = []
-    today = datetime.now()
-    for i in range(5, -1, -1):
-        month_start = (today - timedelta(days=30*i)).replace(day=1)
-        if today.month == 12 and i == 0:
-             month_end = datetime(today.year + 1, 1, 1)
-        elif i == 0:
-             if today.month == 12:
-                 month_end = datetime(today.year + 1, 1, 1)
-             else:
-                 month_end = datetime(today.year, today.month + 1, 1)
-        else:
-             month_end = month_start + timedelta(days=30)
 
-        monthly_sales = db.session.query(db.func.sum(SaleItem.quantity)).join(Sale, Sale.id == SaleItem.sale_id).join(ProductLoc, ProductLoc.id == SaleItem.pl_id).filter(
-            ProductLoc.product_id == product_id,
-            Sale.sale_date >= month_start,
-            Sale.sale_date < month_end
-        ).scalar() or 0
-
+    # 1. Get 140 days of historical data (weekly)
+    historical_sales = get_historical_sales_data(product_id=product_id, days=140)
+    for i, hs in enumerate(historical_sales):
+        dt = datetime.strptime(hs['timestamp'], '%Y-%m-%d')
+        # Only overlay the actuals on the Forecast line for the very last data point to ensure continuity
+        is_last = (i == len(historical_sales) - 1)
         sales_trend.append({
-            'date': month_start.strftime("%b"),
-            'Actual Sales': monthly_sales,
-            'Forecast': monthly_sales * 1.1
+            'date': dt.strftime("%Y-%m-%d"),
+            'Actual Sales': hs['value'],
+            'Forecast': hs['value'] if is_last else None
         })
-    return sales_trend
+
+    # 2. Get forecast data from database
+    product_forecast = Forecast.query.filter_by(product_id=product_id).first()
+    forecast_unavailable = True
+
+    if product_forecast and product_forecast.forecast_data:
+        try:
+            forecast_results = json.loads(product_forecast.forecast_data)
+            for f in forecast_results:
+                f_date = datetime.strptime(f['date'], "%Y-%m-%d")
+                sales_trend.append({
+                    'date': f_date.strftime("%Y-%m-%d"),
+                    'Actual Sales': None,
+                    'Forecast': f['value']
+                })
+            forecast_unavailable = False
+        except Exception as e:
+            logger.error(f"Error parsing product forecast data for product_id={product_id}: {e}")
+
+    if forecast_unavailable:
+        logger.warning(f"Forecast data not available for product_id={product_id}. Triggering background generation.")
+        from azure_forecast import trigger_forecast_generation
+        trigger_forecast_generation(current_app, product_id, historical_sales)
+
+    return sales_trend, forecast_unavailable
 
 def _get_order_summary(product):
     orders = db.session.query(ProductOrder).join(ProductVendor).filter(
@@ -545,7 +563,7 @@ def api_product_detail(sku):
 
     # Fetch complex data structures via helpers
     distribution_data = _get_sales_distribution(product.id)
-    sales_trend = _get_monthly_sales_trend(product.id)
+    sales_trend, forecast_unavailable = _get_monthly_sales_trend(product.id)
     pr_data, avg_lead_time, total_incoming = _get_order_summary(product)
 
     # Simple data mappings
@@ -602,7 +620,8 @@ def api_product_detail(sku):
         },
         'orders': pr_data,
         'forecast': {
-            'rationale': product.forecast.smart_why_rationale if product.forecast else "No forecast available."
+            'rationale': product.forecast.smart_why_rationale if product.forecast else "No forecast available.",
+            'forecast_unavailable': forecast_unavailable
         },
         'locations': location_stock,
         'vendors': vendor_info,
