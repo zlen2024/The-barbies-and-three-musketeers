@@ -161,33 +161,22 @@ def api_dashboard():
     ).scalar() or 0
 
     # 2. Predicted Demand
-    total_predicted_demand = db.session.query(db.func.sum(Forecast.projected_demand)).scalar() or 0
+    total_predicted_demand = db.session.query(db.func.sum(Forecast.projected_demand)).filter(Forecast.product_id != None).scalar() or 0
 
     # 3. Chart Data (Sales by Month)
-    # Group by YYYY-MM
-    # SQLite strftime is %Y-%m
-
-    # We need to aggregate sales by month for the last 6 months
-    today = datetime.now() # Use now() instead of utcnow()
+    today = datetime.now()
     chart_data = []
 
-    for i in range(5, -1, -1):
-        # Calculate start and end of the month
-        # Logic: Go back i months.
-        # This is a bit rough for days, let's just pick month names.
+    historical_sales_for_forecast = []
 
+    # Get actual sales for the last 6 months
+    for i in range(5, -1, -1):
         target_month_date = today - timedelta(days=30*i)
         month_str = target_month_date.strftime("%b")
         month_num = target_month_date.strftime("%m")
         year_num = target_month_date.strftime("%Y")
 
-        # Query sales for this month
-        # SQLite specific date string matching or range
-        # Let's filter by range
-
-        # Start of month
         start_date = datetime(int(year_num), int(month_num), 1)
-        # End of month (start of next month)
         if int(month_num) == 12:
             end_date = datetime(int(year_num) + 1, 1, 1)
         else:
@@ -198,14 +187,71 @@ def api_dashboard():
             Sale.sale_date < end_date
         ).scalar() or 0
 
-        # Mock Prediction (slightly different from actual)
-        prediction = int(actual_sales * 1.05) + 50
-
         chart_data.append({
             "date": month_str,
             "Actual Sales": actual_sales,
-            "AI Prediction": prediction
+            "AI Prediction": actual_sales # Display actuals up to current month as "Prediction" history if desired, or just null/actual
         })
+
+        # Accumulate historical data for Azure API
+        historical_sales_for_forecast.append({
+            "timestamp": start_date.strftime("%Y-%m-%d"),
+            "value": actual_sales
+        })
+
+    # Check Azure Forecast from Database for System-wide (product_id = None)
+    from azure_forecast import trigger_forecast_generation
+    import json
+
+    system_forecast = Forecast.query.filter_by(product_id=None).first()
+    forecast_valid = False
+
+    if system_forecast and system_forecast.forecast_data:
+        # Check if the forecast was generated this month
+        if system_forecast.last_updated and system_forecast.last_updated.month == today.month and system_forecast.last_updated.year == today.year:
+            forecast_valid = True
+            try:
+                forecast_results = json.loads(system_forecast.forecast_data)
+                for f in forecast_results:
+                    # 'month' is "YYYY-MM"
+                    f_date = datetime.strptime(f['month'], "%Y-%m")
+                    chart_data.append({
+                        "date": f_date.strftime("%b"),
+                        "Actual Sales": None,
+                        "AI Prediction": f['value']
+                    })
+            except Exception as e:
+                logger.error(f"Error parsing system forecast data: {e}")
+                forecast_valid = False
+
+    if not forecast_valid:
+        # Trigger background task to fetch new forecast
+        logger.info("Triggering background system-wide forecast.")
+        trigger_forecast_generation(current_app, None, historical_sales_for_forecast)
+
+        # In the meantime, provide some fallback or empty future data
+        # Let's add 2 months of mock data just so the chart doesn't look broken while it's loading for the first time
+        if not (system_forecast and system_forecast.forecast_data):
+            for i in range(1, 3):
+                next_month = today + timedelta(days=30*i)
+                chart_data.append({
+                    "date": next_month.strftime("%b"),
+                    "Actual Sales": None,
+                    "AI Prediction": 0
+                })
+        else:
+            # If we had old data but it's just from last month, let's display it anyway while waiting
+            try:
+                forecast_results = json.loads(system_forecast.forecast_data)
+                for f in forecast_results:
+                    f_date = datetime.strptime(f['month'], "%Y-%m")
+                    chart_data.append({
+                        "date": f_date.strftime("%b"),
+                        "Actual Sales": None,
+                        "AI Prediction": f['value']
+                    })
+            except:
+                pass
 
     # 4. Product Count
     product_count = Product.query.count()
@@ -313,8 +359,13 @@ def _get_sales_distribution(product_id):
     return [{'name': channel, 'value': quantity} for channel, quantity in sales_channels]
 
 def _get_monthly_sales_trend(product_id):
+    import json
+    from azure_forecast import trigger_forecast_generation
+
     sales_trend = []
+    historical_sales = []
     today = datetime.now()
+
     for i in range(5, -1, -1):
         month_start = (today - timedelta(days=30*i)).replace(day=1)
         if today.month == 12 and i == 0:
@@ -336,8 +387,58 @@ def _get_monthly_sales_trend(product_id):
         sales_trend.append({
             'date': month_start.strftime("%b"),
             'Actual Sales': monthly_sales,
-            'Forecast': monthly_sales * 1.1
+            'Forecast': monthly_sales # Historically, the forecast matches actuals for visualization
         })
+
+        historical_sales.append({
+            'timestamp': month_start.strftime("%Y-%m-%d"),
+            'value': monthly_sales
+        })
+
+    product_forecast = Forecast.query.filter_by(product_id=product_id).first()
+    forecast_valid = False
+
+    if product_forecast and product_forecast.forecast_data:
+        if product_forecast.last_updated and product_forecast.last_updated.month == today.month and product_forecast.last_updated.year == today.year:
+            forecast_valid = True
+            try:
+                forecast_results = json.loads(product_forecast.forecast_data)
+                for f in forecast_results:
+                    f_date = datetime.strptime(f['month'], "%Y-%m")
+                    sales_trend.append({
+                        'date': f_date.strftime("%b"),
+                        'Actual Sales': None,
+                        'Forecast': f['value']
+                    })
+            except Exception as e:
+                logger.error(f"Error parsing product forecast data: {e}")
+                forecast_valid = False
+
+    if not forecast_valid:
+        logger.info(f"Triggering background product forecast for product_id={product_id}")
+        trigger_forecast_generation(current_app, product_id, historical_sales)
+
+        if not (product_forecast and product_forecast.forecast_data):
+            for i in range(1, 3):
+                next_month = today + timedelta(days=30*i)
+                sales_trend.append({
+                    "date": next_month.strftime("%b"),
+                    "Actual Sales": None,
+                    "Forecast": 0
+                })
+        else:
+            try:
+                forecast_results = json.loads(product_forecast.forecast_data)
+                for f in forecast_results:
+                    f_date = datetime.strptime(f['month'], "%Y-%m")
+                    sales_trend.append({
+                        'date': f_date.strftime("%b"),
+                        'Actual Sales': None,
+                        'Forecast': f['value']
+                    })
+            except:
+                pass
+
     return sales_trend
 
 def _get_order_summary(product):

@@ -2,3 +2,5 @@ flask
 Flask-SQLAlchemy
 Flask-Login
 gunicorn
+nixtla
+pandas

@@ -204,15 +204,18 @@ class Invoice(db.Model):
     def __repr__(self):
         return f'<Invoice {self.invoice_number}>'
 
-# 5. Forecast (Optional/Legacy but good to keep for "AI" features if needed)
-# I will keep a simplified version linked to Product for the dashboard AI features
+# 5. Forecast
 class Forecast(db.Model):
     __tablename__ = 'forecast'
     id = db.Column(db.Integer, primary_key=True)
-    product_id = db.Column(db.Integer, db.ForeignKey('product.product_id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('product.product_id'), nullable=True) # Null for system-wide forecast
     projected_demand = db.Column(db.Integer)
     confidence_score = db.Column(db.Float)
     smart_why_rationale = db.Column(db.Text)
+
+    # Store forecasted data points as JSON string, e.g. [{"month": "2024-01", "value": 150}]
+    forecast_data = db.Column(db.Text, nullable=True)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
 
     product = db.relationship('Product', backref=db.backref('forecast', uselist=False))
 
