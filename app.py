@@ -1,4 +1,5 @@
 import os
+import math
 import logging
 import traceback
 from datetime import datetime, timedelta
@@ -902,6 +903,7 @@ def api_forecast_products():
 
     return jsonify(product_list)
 
+
 # API: Get Forecast Data
 @app.route('/api/forecast/data', methods=['GET'])
 @login_required
@@ -941,9 +943,14 @@ def api_forecast_data():
 
     product_locs = pl_query.all()
     if not product_locs:
-        return jsonify([]) # No data for this combination
+        return jsonify({
+            'chartData': [],
+            'kpi': {},
+            'alerts': [{'type': 'info', 'message': 'No data for this combination.'}]
+        }) # No data for this combination
 
     pl_ids = [pl.id for pl in product_locs]
+    current_stock = sum(pl.quantity_on_hand for pl in product_locs)
 
     # Fetch daily sales for the past 2 years (730 days) to allow for Monthly MAs
     today = datetime.now()
@@ -1085,7 +1092,115 @@ def api_forecast_data():
 
         chart_data.append(entry)
 
-    return jsonify(chart_data)
+    # ---------------------------------------------------------
+    # CALCULATE INDICATORS & ALERTS FOR THE LATEST PERIOD
+    # ---------------------------------------------------------
+    kpi = {}
+    alerts = []
+
+    if len(aggregated_data) > 0:
+        latest_period = aggregated_data[-1]["raw_val"]
+        prev_period = aggregated_data[-2]["raw_val"] if len(aggregated_data) > 1 else 0
+
+        latest_ma3 = ma3[-1] if ma3[-1] is not None else 0
+        latest_ma7 = ma7[-1] if ma7[-1] is not None else 0
+        latest_ma14 = ma14[-1] if ma14[-1] is not None else 0
+
+        # Trend Logic
+        if latest_ma3 > latest_ma7:
+            trend = "Uptrend"
+        elif latest_ma3 < latest_ma7:
+            trend = "Downtrend"
+        else:
+            trend = "Flat"
+
+        # Demand Momentum = (CurrentPeriod - MA7) / MA7
+        if latest_ma7 == 0:
+            momentum = 0 if latest_period == 0 else None
+        else:
+            momentum = (latest_period - latest_ma7) / latest_ma7
+
+        # Growth Rate = (CurrentPeriod - PreviousPeriod) / PreviousPeriod
+        if prev_period == 0:
+            growth_rate = 0 if latest_period == 0 else None
+        else:
+            growth_rate = (latest_period - prev_period) / prev_period
+
+        # Rolling Sum (7-Period Total), Volatility, Range
+        last_7 = [x["raw_val"] for x in aggregated_data[-7:]]
+        rolling_sum = sum(last_7)
+
+        if len(last_7) > 1:
+            mean_7 = rolling_sum / len(last_7)
+            variance = sum((x - mean_7) ** 2 for x in last_7) / (len(last_7) - 1)
+            volatility = math.sqrt(variance)
+        else:
+            volatility = 0
+
+        rng = max(last_7) - min(last_7) if last_7 else 0
+
+        # Inventory Analytics
+        if latest_ma7 == 0:
+            stock_coverage = 0 if current_stock == 0 else None
+        else:
+            stock_coverage = current_stock / latest_ma7
+
+        net_demand = latest_ma7 - current_stock
+        remaining_stock = current_stock - latest_ma7
+
+        kpi = {
+            "MA3": round(latest_ma3, 2) if latest_ma3 is not None else None,
+            "MA7": round(latest_ma7, 2) if latest_ma7 is not None else None,
+            "MA14": round(latest_ma14, 2) if latest_ma14 is not None else None,
+            "TrendLogic": trend,
+            "DemandMomentum": round(momentum, 4) if momentum is not None else None,
+            "GrowthRate": round(growth_rate, 4) if growth_rate is not None else None,
+            "RollingSum7": rolling_sum,
+            "Volatility": round(volatility, 2),
+            "Range": rng,
+            "StockCoverage": round(stock_coverage, 2) if stock_coverage is not None else None,
+            "NetDemand": round(net_demand, 2) if net_demand is not None else None,
+            "RemainingStock": round(remaining_stock, 2) if remaining_stock is not None else None,
+            "CurrentStock": current_stock,
+            "CurrentPeriod": latest_period
+        }
+
+        # Alerts
+        # Trend Alert
+        if len(ma3) > 1 and len(ma7) > 1:
+            prev_ma3 = ma3[-2] if ma3[-2] is not None else 0
+            prev_ma7 = ma7[-2] if ma7[-2] is not None else 0
+
+            if latest_ma3 > latest_ma7 and prev_ma3 <= prev_ma7:
+                alerts.append({"type": "info", "message": "Trend Alert: MA3 recently crossed above MA7 (Uptrend)."})
+            elif latest_ma3 < latest_ma7 and prev_ma3 >= prev_ma7:
+                alerts.append({"type": "warning", "message": "Trend Alert: MA3 recently crossed below MA7 (Downtrend)."})
+
+        # Demand Spike
+        if latest_period > (latest_ma7 * 1.5):
+            alerts.append({"type": "info", "message": "Demand Spike: Current period demand is over 50% higher than MA7."})
+
+        # Low Demand
+        if latest_period < (latest_ma7 * 0.5):
+            alerts.append({"type": "warning", "message": "Low Demand: Current period demand is less than 50% of MA7."})
+
+        # Out of Stock Risk
+        if current_stock < latest_ma7:
+            alerts.append({"type": "error", "message": "Out of Stock Risk: Current stock is less than the 7-period moving average."})
+
+        # Low Stock Warning
+        if stock_coverage is not None and stock_coverage < 3:
+            alerts.append({"type": "warning", "message": f"Low Stock Warning: Stock coverage is {round(stock_coverage, 1)} periods (less than 3)."})
+
+        # Zero Activity
+        if latest_period == 0:
+            alerts.append({"type": "error", "message": "Zero Activity: No sales recorded for the current period."})
+
+    return jsonify({
+        "chartData": chart_data,
+        "kpi": kpi,
+        "alerts": alerts
+    })
 
 # API: Sales Endpoints
 @app.route('/api/sales', methods=['GET', 'POST'])
