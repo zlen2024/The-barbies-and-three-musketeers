@@ -74,7 +74,7 @@ def generate_forecast_background(app, product_id, sales_data):
                 db.session.add(forecast)
 
             forecast.forecast_data = json.dumps(forecast_results)
-            forecast.last_updated = datetime.utcnow()
+            forecast.last_updated = datetime.now()
 
             # Simple projected demand is sum of forecast
             forecast.projected_demand = int(sum([f['value'] for f in forecast_results]))
@@ -86,10 +86,29 @@ def generate_forecast_background(app, product_id, sales_data):
             logger.error(f"Error in background forecast generation for product_id={product_id}: {str(e)}")
 
 
+# In-memory set to track currently generating forecasts to prevent duplicate concurrent API calls
+_generating_forecasts = set()
+_generating_lock = threading.Lock()
+
 def trigger_forecast_generation(app, product_id, sales_data):
     """
     Triggers the forecast generation in a background thread.
     """
-    thread = threading.Thread(target=generate_forecast_background, args=(app._get_current_object(), product_id, sales_data))
+    with _generating_lock:
+        if product_id in _generating_forecasts:
+            logger.info(f"Forecast generation already in progress for product_id={product_id}. Skipping.")
+            return
+        _generating_forecasts.add(product_id)
+
+    app_obj = app._get_current_object()
+
+    def wrapper():
+        try:
+            generate_forecast_background(app_obj, product_id, sales_data)
+        finally:
+            with _generating_lock:
+                _generating_forecasts.discard(product_id)
+
+    thread = threading.Thread(target=wrapper)
     thread.daemon = True
     thread.start()
