@@ -1513,11 +1513,16 @@ def api_workspace_add_user():
 @login_required
 def api_workspace_team():
     user = current_user
-    user_locations = UserLocation.query.filter_by(uid=user.id).all()
-    location_ids = [ul.location_id for ul in user_locations]
 
-    if user.role == 'Manager':
+    if user.role == 'Admin':
+        location_ids = [loc.id for loc in Location.query.all()]
+    else:
+        user_locations = UserLocation.query.filter_by(uid=user.id).all()
+        location_ids = [ul.location_id for ul in user_locations]
+
+    if user.role in ['Manager', 'Admin']:
         # Manager gets all members from all assigned locations, grouped by location
+        # Admin gets all members from all locations, grouped by location
         team_data = []
         for loc_id in location_ids:
             loc = Location.query.get(loc_id)
