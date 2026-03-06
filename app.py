@@ -7,8 +7,8 @@ from functools import wraps
 from sqlalchemy.orm import joinedload
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, SaleItem, Forecast, UserLocation, Invoice
-
+from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, SaleItem, Forecast, UserLocation, Invoice, TimeSeriesForecast
+from forecasting import schedule_forecasting
 
 # Configure Logging
 logging.basicConfig(
@@ -1699,4 +1699,5 @@ def api_warehouse_product_stats():
 
 if __name__ == '__main__':
     # No db.create_all() here, relying on seed script
+    schedule_forecasting(app)
     app.run(debug=True)

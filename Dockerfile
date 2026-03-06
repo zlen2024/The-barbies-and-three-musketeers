@@ -22,7 +22,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
-COPY app.py models.py seed_data.py ./
+COPY app.py models.py seed_data.py forecasting.py gunicorn.conf.py ./
 # Copy built frontend assets
 # The build output is usually in `dist` relative to the frontend root.
 # So from Stage 1 (`/app/frontend/dist`) to Stage 2 (`/app/frontend/dist`).
@@ -39,4 +39,4 @@ ENV PORT=8080
 # Run command: Seed database and start gunicorn
 # Use 1 worker to prevent SQLite locking issues, and multiple threads for concurrency.
 # Add logging to stdout/stderr for Fly.io log capture.
-CMD ["sh", "-c", "python seed_data.py && gunicorn --workers=1 --threads=4 --timeout=120 --access-logfile - --error-logfile - --bind=0.0.0.0:8080 app:app"]
+CMD ["sh", "-c", "python seed_data.py && gunicorn -c gunicorn.conf.py --workers=1 --threads=4 --timeout=120 --access-logfile - --error-logfile - --bind=0.0.0.0:8080 app:app"]

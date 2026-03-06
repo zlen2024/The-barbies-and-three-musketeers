@@ -219,6 +219,19 @@ class Forecast(db.Model):
     def __repr__(self):
         return f'<Forecast P:{self.product_id}>'
 
+class TimeSeriesForecast(db.Model):
+    __tablename__ = 'time_series_forecast'
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('product.product_id'), nullable=True) # Null for global dashboard forecast
+    forecast_date = db.Column(db.DateTime, nullable=False)
+    predicted_value = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    product = db.relationship('Product', backref=db.backref('time_series_forecasts', lazy=True))
+
+    def __repr__(self):
+        return f'<TimeSeriesForecast P:{self.product_id} Date:{self.forecast_date} Val:{self.predicted_value}>'
+
 # 6. Internal Mail
 class InternalMail(db.Model):
     __tablename__ = 'internal_mail'
