@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from './Layout';
 import { Card, Title, Text, LineChart, Metric, Flex, Badge, Button, Callout } from "@tremor/react";
 import { ArrowRight, TrendingUp, AlertCircle, ShoppingCart, DollarSign, BrainCircuit } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const valueFormatter = (number) => `$ ${new Intl.NumberFormat("us").format(number).toString()}`;
@@ -9,6 +10,7 @@ const numberFormatter = (number) => `${new Intl.NumberFormat("us").format(number
 
 const Dashboard = () => {
   const role = localStorage.getItem('userRole') || 'Staff';
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -122,8 +124,15 @@ const Dashboard = () => {
 
         {/* Main Chart */}
         <Card>
-            <Title>Historical Sales vs. AI Predictions</Title>
-            <Text>Comparison of actual sales performance against AI forecasting models.</Text>
+            <div className="flex justify-between items-start">
+                <div>
+                    <Title>Historical Sales vs. AI Predictions</Title>
+                    <Text>Comparison of actual sales performance against AI forecasting models.</Text>
+                </div>
+                <Button size="xs" variant="light" icon={ArrowRight} onClick={() => navigate('/forecast')}>
+                    Go to Forecast
+                </Button>
+            </div>
             <LineChart
                 className="mt-6 h-72"
                 data={data?.chartData}
