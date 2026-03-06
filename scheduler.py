@@ -54,6 +54,11 @@ def get_historical_sales_data(product_id=None, days=140):
     df['date'] = pd.to_datetime(df['date'])
     df.set_index('date', inplace=True)
 
+    # Reindex to ensure we cover the entire 140-day period up to today
+    full_date_range = pd.date_range(start=start_date.date(), end=end_date.date(), freq='D')
+    df = df.reindex(full_date_range, fill_value=0)
+    df.index.name = 'date'
+
     # Resample to weekly ending on Monday, filling missing weeks with 0
     weekly_df = df.resample('W-MON').sum().fillna(0)
     weekly_df.reset_index(inplace=True)

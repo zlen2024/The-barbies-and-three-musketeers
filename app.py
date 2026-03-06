@@ -176,12 +176,14 @@ def api_dashboard():
 
     # Get 140 days of historical data (weekly)
     historical_sales = get_historical_sales_data(product_id=None, days=140)
-    for hs in historical_sales:
+    for i, hs in enumerate(historical_sales):
         dt = datetime.strptime(hs['timestamp'], '%Y-%m-%d')
+        # Only overlay the actuals on the AI Prediction line for the very last data point to ensure continuity
+        is_last = (i == len(historical_sales) - 1)
         chart_data.append({
             'date': dt.strftime("%Y-%m-%d"),
             'Actual Sales': hs['value'],
-            'AI Prediction': hs['value']  # Overlay actuals on AI prediction line for continuity
+            'AI Prediction': hs['value'] if is_last else None
         })
 
     # Check Azure Forecast from Database for System-wide (product_id = None)
@@ -319,12 +321,14 @@ def _get_monthly_sales_trend(product_id):
 
     # 1. Get 140 days of historical data (weekly)
     historical_sales = get_historical_sales_data(product_id=product_id, days=140)
-    for hs in historical_sales:
+    for i, hs in enumerate(historical_sales):
         dt = datetime.strptime(hs['timestamp'], '%Y-%m-%d')
+        # Only overlay the actuals on the Forecast line for the very last data point to ensure continuity
+        is_last = (i == len(historical_sales) - 1)
         sales_trend.append({
             'date': dt.strftime("%Y-%m-%d"),
             'Actual Sales': hs['value'],
-            'Forecast': hs['value']  # Overlay actuals on forecast line for continuity
+            'Forecast': hs['value'] if is_last else None
         })
 
     # 2. Get forecast data from database

@@ -53,10 +53,21 @@ def generate_forecast_background(app, product_id, sales_data):
 
             # Process the result
             forecast_results = []
+
+            # Find the prediction column (anything other than timestamp)
+            pred_col = None
+            for col in timegen_fcst_df.columns:
+                if col != 'timestamp':
+                    pred_col = col
+                    break
+
+            if not pred_col:
+                logger.error("No prediction column returned from TimeGEN API.")
+                return
+
             for index, row in timegen_fcst_df.iterrows():
-                # 'TimeGPT' is the default column name for Nixtla forecasts
-                pred_value = row.get('TimeGPT', row.get('value', 0))
-                # Fallback to sum of historical average if Nixtla fails in some way
+                pred_value = row.get(pred_col, 0)
+
                 if pd.isna(pred_value):
                     pred_value = 0
 
