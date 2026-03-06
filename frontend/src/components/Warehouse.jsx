@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Building2, Package, TrendingUp, DollarSign,
+  ArrowLeft, ArrowRight, Building2, Package, TrendingUp, DollarSign,
   AlertCircle, ChevronRight, Activity, Calendar, Box
 } from 'lucide-react';
 import {
@@ -172,8 +172,14 @@ const Warehouse = () => {
 
           <Grid numItems={1} numItemsLg={3} className="gap-6">
             <Col numColSpan={1} numColSpanLg={2}>
-              <Card className="h-full">
-                <Title>Sales History (Last 30 Days) - {location.loc_code}</Title>
+              <Card
+                className="h-full cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => navigate(`/forecast?location=${locationId}&product=${productId}`)}
+              >
+                <div className="flex justify-between items-center">
+                  <Title>Sales History (Last 30 Days) - {location.loc_code}</Title>
+                  <Text className="text-xs text-indigo-600 flex items-center">Click for Analysis <ArrowRight className="h-3 w-3 ml-1"/></Text>
+                </div>
                 <div className="mt-4 h-72">
                   <AreaChart
                     data={data.sales_history}
