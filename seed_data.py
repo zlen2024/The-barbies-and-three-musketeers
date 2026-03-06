@@ -15,22 +15,24 @@ def seed_database():
         print("Seeding Users...")
         # Users
         users = [
-            User(username='admin', email='admin@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Admin'),
-            User(username='warehouse', email='warehouse@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Warehouse'),
-            User(username='sales', email='sales@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Sales'),
-            User(username='manager', email='manager@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Manager')
+            User(username='testadmin', email='testadmin@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Admin'),
+            User(username='testwarehouse', email='testwarehouse@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Warehouse'),
+            User(username='testsales', email='testsales@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Sales'),
+            User(username='testmanager', email='testmanager@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Manager'),
+            User(username='testwarehouse2', email='testwarehouse2@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Warehouse'),
+            User(username='testsales2', email='testsales2@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Sales')
         ]
         db.session.add_all(users)
         db.session.commit()
 
         print("Seeding Locations...")
         locations = [
-            Location(loc_code='WH-MAIN', description='Main Warehouse', type='Physical Warehouse', address='123 Main Industrial Park', region='West Malaysia'),
-            Location(loc_code='WH-REWORK', description='Rework Area', type='Physical Warehouse', address='123 Main Industrial Park, Block B', region='West Malaysia'),
-            Location(loc_code='CH-LAZADA', description='Lazada Online Store', type='Online Channel', address='Virtual Hub - Lazada', region='All Malaysia'),
-            Location(loc_code='CH-SHOPEE', description='Shopee Online Store', type='Online Channel', address='Virtual Hub - Shopee', region='All Malaysia'),
-            Location(loc_code='CH-TIKTOK', description='TikTok Shop', type='Online Channel', address='Virtual Hub - TikTok', region='All Malaysia'),
-            Location(loc_code='CH-ESTORE', description='Direct E-Store', type='Online Channel', address='HQ Server Room', region='All Malaysia')
+            Location(loc_code='test-WH-MAIN', description='test Main Warehouse', type='Physical Warehouse', address='test 123 Main Industrial Park', region='West Malaysia'),
+            Location(loc_code='test-WH-REWORK', description='test Rework Area', type='Physical Warehouse', address='test 123 Main Industrial Park, Block B', region='West Malaysia'),
+            Location(loc_code='test-CH-LAZADA', description='test Lazada Online Store', type='Online Channel', address='test Virtual Hub - Lazada', region='All Malaysia'),
+            Location(loc_code='test-CH-SHOPEE', description='test Shopee Online Store', type='Online Channel', address='test Virtual Hub - Shopee', region='All Malaysia'),
+            Location(loc_code='test-CH-TIKTOK', description='test TikTok Shop', type='Online Channel', address='test Virtual Hub - TikTok', region='All Malaysia'),
+            Location(loc_code='test-CH-ESTORE', description='test Direct E-Store', type='Online Channel', address='test HQ Server Room', region='All Malaysia')
         ]
         db.session.add_all(locations)
         db.session.commit()
@@ -43,33 +45,39 @@ def seed_database():
             # Assign sales user to CH-LAZADA and CH-SHOPEE
             UserLocation(uid=users[2].id, location_id=locations[2].id),
             UserLocation(uid=users[2].id, location_id=locations[3].id),
+            # Assign testwarehouse2 to WH-MAIN and WH-REWORK
+            UserLocation(uid=users[4].id, location_id=locations[0].id),
+            UserLocation(uid=users[4].id, location_id=locations[1].id),
+            # Assign testsales2 to CH-TIKTOK and CH-ESTORE
+            UserLocation(uid=users[5].id, location_id=locations[4].id),
+            UserLocation(uid=users[5].id, location_id=locations[5].id),
         ]
         db.session.add_all(user_locations)
         db.session.commit()
 
         print("Seeding Vendors...")
         vendors = [
-            Vendor(vendor_name='GlobalPort Logistics', contact_person='John Doe', phone_number='+123456789', is_overseas=True),
-            Vendor(vendor_name='Apex Kitchen Supplies', contact_person='Jane Smith', phone_number='+987654321', is_overseas=False),
-            Vendor(vendor_name='Nordic Ware', contact_person='Bob Johnson', phone_number='+1122334455', is_overseas=True),
-            Vendor(vendor_name='TechSource Inc.', contact_person='Alice Brown', phone_number='+5566778899', is_overseas=False),
-            Vendor(vendor_name='Rubine Manufacturer', contact_person='Charlie Green', phone_number='+9988776655', is_overseas=False)
+            Vendor(vendor_name='test GlobalPort Logistics', contact_person='test John Doe', phone_number='+123456789', is_overseas=True),
+            Vendor(vendor_name='test Apex Kitchen Supplies', contact_person='test Jane Smith', phone_number='+987654321', is_overseas=False),
+            Vendor(vendor_name='test Nordic Ware', contact_person='test Bob Johnson', phone_number='+1122334455', is_overseas=True),
+            Vendor(vendor_name='test TechSource Inc.', contact_person='test Alice Brown', phone_number='+5566778899', is_overseas=False),
+            Vendor(vendor_name='test Rubine Manufacturer', contact_person='test Charlie Green', phone_number='+9988776655', is_overseas=False)
         ]
         db.session.add_all(vendors)
         db.session.commit()
 
         print("Seeding Products...")
         products = [
-            Product(model_code='HT-PLATZ-450-H', product_name='Granite Sink Platz 450', category='Granite Sink', brand='Rubine', status='Active'),
-            Product(model_code='SIROCCO-XR-BL', product_name='Sirocco XR Hood', category='Hood Cooker', brand='Rubine', status='Active'),
-            Product(model_code='RWH-2388-B', product_name='Instant Water Heater', category='Water Heater', brand='Rubine', status='Active'),
-            Product(model_code='FX-1200-SS', product_name='Stainless Steel Sink FX', category='Stainless Sink', brand='Haustern', status='Active'),
-            Product(model_code='MT-5050-G', product_name='Mixer Tap Gold', category='Taps', brand='Haustern', status='Active'),
-            Product(model_code='OV-60-EL', product_name='Electric Oven 60L', category='Oven', brand='Elba', status='Discontinued'),
-            Product(model_code='HB-2-GAS', product_name='2-Burner Gas Hob', category='Hob', brand='Rubine', status='Active'),
-            Product(model_code='DISH-X1', product_name='Dishwasher X1 Pro', category='Dishwasher', brand='Bosch', status='Active'),
-            Product(model_code='ACC-RACK-S', product_name='Spice Rack Small', category='Accessories', brand='OEM', status='Active'),
-            Product(model_code='ACC-DRAIN', product_name='Drainer Basket', category='Accessories', brand='OEM', status='Active')
+            Product(model_code='test-HT-PLATZ-450-H', product_name='test Granite Sink Platz 450', category='Granite Sink', brand='test Rubine', status='Active'),
+            Product(model_code='test-SIROCCO-XR-BL', product_name='test Sirocco XR Hood', category='Hood Cooker', brand='test Rubine', status='Active'),
+            Product(model_code='test-RWH-2388-B', product_name='test Instant Water Heater', category='Water Heater', brand='test Rubine', status='Active'),
+            Product(model_code='test-FX-1200-SS', product_name='test Stainless Steel Sink FX', category='Stainless Sink', brand='test Haustern', status='Active'),
+            Product(model_code='test-MT-5050-G', product_name='test Mixer Tap Gold', category='Taps', brand='test Haustern', status='Active'),
+            Product(model_code='test-OV-60-EL', product_name='test Electric Oven 60L', category='Oven', brand='test Elba', status='Discontinued'),
+            Product(model_code='test-HB-2-GAS', product_name='test 2-Burner Gas Hob', category='Hob', brand='test Rubine', status='Active'),
+            Product(model_code='test-DISH-X1', product_name='test Dishwasher X1 Pro', category='Dishwasher', brand='test Bosch', status='Active'),
+            Product(model_code='test-ACC-RACK-S', product_name='test Spice Rack Small', category='Accessories', brand='test OEM', status='Active'),
+            Product(model_code='test-ACC-DRAIN', product_name='test Drainer Basket', category='Accessories', brand='test OEM', status='Active')
         ]
         db.session.add_all(products)
         db.session.commit()
@@ -106,8 +114,8 @@ def seed_database():
             if random.choice([True, False]):
                 campaigns.append(Campaign(
                     pricing_id=pricing.id, # We need ID, so we might need to flush or add separately
-                    campaign_name=f"Promo for {prod.model_code}",
-                    gift_item="Free Cleaning Kit",
+                    campaign_name=f"test Promo for {prod.model_code}",
+                    gift_item="test Free Cleaning Kit",
                     start_date=datetime.utcnow() - timedelta(days=30),
                     end_date=datetime.utcnow() + timedelta(days=30)
                 ))
@@ -125,8 +133,8 @@ def seed_database():
             if random.random() > 0.7:
                  db.session.add(Campaign(
                     pricing_id=p.id,
-                    campaign_name=f"Promo Campaign 2024",
-                    gift_item="Mystery Gift",
+                    campaign_name=f"test Promo Campaign 2024",
+                    gift_item="test Mystery Gift",
                     start_date=datetime.utcnow(),
                     end_date=datetime.utcnow() + timedelta(days=60)
                 ))
@@ -171,7 +179,7 @@ def seed_database():
                      if pl.product.pricing:
                          price = pl.product.pricing[0].lsp_price or 100.0
 
-                     sale = Sale(location_id=pl.location_id, sale_date=date, sold_by=users[2].id, customer_name=f"Customer {random.randint(1000,9999)}", status="Paid", client_email=f"customer{random.randint(1000,9999)}@example.com", total_amount=price * qty)
+                     sale = Sale(location_id=pl.location_id, sale_date=date, sold_by=users[2].id, customer_name=f"test Customer {random.randint(1000,9999)}", status="Paid", client_email=f"testcustomer{random.randint(1000,9999)}@example.com", total_amount=price * qty)
                      db.session.add(sale)
                      db.session.flush() # get sale.id
                      sales.append(sale)
@@ -189,7 +197,7 @@ def seed_database():
                      if pl.product.pricing:
                          price = pl.product.pricing[0].lsp_price or 100.0
 
-                     sale = Sale(location_id=pl.location_id, sale_date=date, sold_by=users[1].id, customer_name=f"Distributor {random.randint(100,999)}", status="Paid", client_email=f"distributor{random.randint(100,999)}@example.com", total_amount=price * qty)
+                     sale = Sale(location_id=pl.location_id, sale_date=date, sold_by=users[1].id, customer_name=f"test Distributor {random.randint(100,999)}", status="Paid", client_email=f"testdistributor{random.randint(100,999)}@example.com", total_amount=price * qty)
                      db.session.add(sale)
                      db.session.flush()
                      sales.append(sale)
@@ -205,7 +213,7 @@ def seed_database():
         for idx, sale in enumerate(sales):
             invoice = Invoice(
                 sale_id=sale.id,
-                invoice_number=f"INV-{sale.sale_date.strftime('%Y%m%d')}-{1000 + idx}",
+                invoice_number=f"test-INV-{sale.sale_date.strftime('%Y%m%d')}-{1000 + idx}",
                 generated_date=sale.sale_date + timedelta(hours=1),
                 total_amount=sale.total_amount
             )
@@ -224,7 +232,7 @@ def seed_database():
             orders.append(ProductOrder(
                 pv_id=pv.id,
                 ul_id=user_locations[0].ul_id, # Link to warehouse user's location
-                po_reference=f"PO-2024-{random.randint(1000,9999)}",
+                po_reference=f"test-PO-2024-{random.randint(1000,9999)}",
                 order_qty=random.randint(50, 200),
                 ets_date=today + timedelta(days=pv.lead_time_days),
                 status='Ordered',
@@ -254,16 +262,16 @@ def seed_database():
                  product_id=prod.id,
                  projected_demand=random.randint(50, 300),
                  confidence_score=random.uniform(0.7, 0.99),
-                 smart_why_rationale=f"Simulated AI rationale for {prod.model_code} based on recent sales velocity."
+                 smart_why_rationale=f"test Simulated AI rationale for {prod.model_code} based on recent sales velocity."
              ))
         db.session.add_all(forecasts)
         db.session.commit()
 
         print("Seeding Internal Mail...")
         mails = [
-            InternalMail(sender_id=users[3].id, receiver_id=users[1].id, subject='Warehouse Check', body='Please ensure the main warehouse has enough HT-PLATZ-450-H.'),
-            InternalMail(sender_id=users[3].id, receiver_id=users[2].id, subject='Sales Target', body='Great job on the sales this week, let us keep the momentum going.'),
-            InternalMail(sender_id=users[1].id, receiver_id=users[3].id, subject='Re: Warehouse Check', body='Stock levels checked. We are running low on CH-SINK-SS-1, need to reorder.'),
+            InternalMail(sender_id=users[3].id, receiver_id=users[1].id, subject='test Warehouse Check', body='test Please ensure the main warehouse has enough HT-PLATZ-450-H.'),
+            InternalMail(sender_id=users[3].id, receiver_id=users[2].id, subject='test Sales Target', body='test Great job on the sales this week, let us keep the momentum going.'),
+            InternalMail(sender_id=users[1].id, receiver_id=users[3].id, subject='test Re: Warehouse Check', body='test Stock levels checked. We are running low on CH-SINK-SS-1, need to reorder.'),
         ]
         db.session.add_all(mails)
         db.session.commit()
