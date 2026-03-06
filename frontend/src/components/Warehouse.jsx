@@ -186,7 +186,7 @@ const Warehouse = () => {
                     index="date"
                     categories={["sales"]}
                     colors={["blue"]}
-                    valueFormatter={(number) => Intl.NumberFormat("us").format(number).toString()}
+                    valueFormatter={(number) => Intl.NumberFormat("en-US").format(number).toString()}
                     showLegend={false}
                     className="h-full"
                   />

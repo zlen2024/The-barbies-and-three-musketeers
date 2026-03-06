@@ -36,7 +36,7 @@ import {
 import axios from 'axios';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 
-const valueFormatter = (number) => `${new Intl.NumberFormat("us").format(number).toString()}`;
+const valueFormatter = (number) => `${new Intl.NumberFormat("en-US").format(number).toString()}`;
 
 const ProductDetail = () => {
   const { sku } = useParams();

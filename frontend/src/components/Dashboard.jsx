@@ -4,8 +4,8 @@ import { Card, Title, Text, LineChart, Metric, Flex, Badge, Button, Callout } fr
 import { ArrowRight, TrendingUp, AlertCircle, ShoppingCart, DollarSign, BrainCircuit } from 'lucide-react';
 import axios from 'axios';
 
-const valueFormatter = (number) => `$ ${new Intl.NumberFormat("us").format(number).toString()}`;
-const numberFormatter = (number) => `${new Intl.NumberFormat("us").format(number).toString()}`;
+const valueFormatter = (number) => `$ ${new Intl.NumberFormat("en-US").format(number).toString()}`;
+const numberFormatter = (number) => `${new Intl.NumberFormat("en-US").format(number).toString()}`;
 
 const Dashboard = () => {
   const role = localStorage.getItem('userRole') || 'Staff';
