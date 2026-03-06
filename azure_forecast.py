@@ -46,7 +46,7 @@ def generate_forecast_background(app, product_id, sales_data):
             timegen_fcst_df = client.forecast(
                 df=df,
                 h=9,
-                freq='W-MON',
+                freq='7D',
                 time_col='timestamp',
                 target_col='value'
             )

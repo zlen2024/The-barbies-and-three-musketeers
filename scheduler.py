@@ -59,16 +59,32 @@ def get_historical_sales_data(product_id=None, days=140):
     df = df.reindex(full_date_range, fill_value=0)
     df.index.name = 'date'
 
-    # Resample to weekly ending on Monday, filling missing weeks with 0
-    weekly_df = df.resample('W-MON').sum().fillna(0)
-    weekly_df.reset_index(inplace=True)
+    # Resample to 7-day intervals counting backwards from today
+    # Instead of W-MON, we can group by a generic 7-day frequency starting from the latest date
+    # Pandas '7D' frequency aligns to the start date of the time series.
+    # To align so the last chunk ends today, we can reverse the dataframe or manually group.
 
-    sales_data = [{
-        'timestamp': row['date'].strftime('%Y-%m-%d'),
-        'value': row['value']
-    } for index, row in weekly_df.iterrows()]
+    df.reset_index(inplace=True)
+    df = df.sort_values('date', ascending=False)
 
-    return sales_data
+    # Group by chunks of 7 days
+    chunks = [df.iloc[i:i+7] for i in range(0, len(df), 7)]
+
+    weekly_data = []
+    for chunk in chunks:
+        if len(chunk) > 0:
+            # The label for the chunk is the latest date in that 7-day period
+            chunk_latest_date = chunk['date'].max()
+            chunk_total_value = chunk['value'].sum()
+            weekly_data.append({
+                'timestamp': chunk_latest_date.strftime('%Y-%m-%d'),
+                'value': chunk_total_value
+            })
+
+    # Reverse back to chronological order
+    weekly_data.reverse()
+
+    return weekly_data
 
 def run_forecast_job():
     logger.info("Running scheduled forecast job for all products and system-wide.")

@@ -205,7 +205,9 @@ def api_dashboard():
             logger.error(f"Error parsing system forecast data: {e}")
 
     if forecast_unavailable:
-        logger.warning("System-wide forecast data not available.")
+        logger.warning("System-wide forecast data not available. Triggering background generation.")
+        from azure_forecast import trigger_forecast_generation
+        trigger_forecast_generation(current_app, None, historical_sales)
 
     # 4. Product Count
     product_count = Product.query.count()
@@ -350,7 +352,9 @@ def _get_monthly_sales_trend(product_id):
             logger.error(f"Error parsing product forecast data for product_id={product_id}: {e}")
 
     if forecast_unavailable:
-        logger.warning(f"Forecast data not available for product_id={product_id}")
+        logger.warning(f"Forecast data not available for product_id={product_id}. Triggering background generation.")
+        from azure_forecast import trigger_forecast_generation
+        trigger_forecast_generation(current_app, product_id, historical_sales)
 
     return sales_trend, forecast_unavailable
 
