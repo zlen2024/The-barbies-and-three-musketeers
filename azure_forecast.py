@@ -42,11 +42,11 @@ def generate_forecast_background(app, product_id, sales_data):
             # Sort by timestamp
             df = df.sort_values(by='timestamp')
 
-            # Generate forecast for the next 2 months
+            # Generate forecast for the next 9 weeks
             timegen_fcst_df = client.forecast(
                 df=df,
-                h=2,
-                freq='MS',
+                h=9,
+                freq='W-MON',
                 time_col='timestamp',
                 target_col='value'
             )
@@ -60,10 +60,10 @@ def generate_forecast_background(app, product_id, sales_data):
                 if pd.isna(pred_value):
                     pred_value = 0
 
-                # We format it to YYYY-MM
-                month_str = row['timestamp'].strftime("%Y-%m")
+                # We format it to YYYY-MM-DD for weekly data
+                week_str = row['timestamp'].strftime("%Y-%m-%d")
                 forecast_results.append({
-                    "month": month_str,
+                    "date": week_str,
                     "value": max(0, float(pred_value)) # Prevent negative forecasts
                 })
 
@@ -100,7 +100,12 @@ def trigger_forecast_generation(app, product_id, sales_data):
             return
         _generating_forecasts.add(product_id)
 
-    app_obj = app._get_current_object()
+    # If app is a LocalProxy (e.g. current_app), get the underlying object.
+    # If it's already the Flask app, this might fail, so we handle it.
+    try:
+        app_obj = app._get_current_object()
+    except AttributeError:
+        app_obj = app
 
     def wrapper():
         try:
