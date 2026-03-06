@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
+import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import Layout from './Layout';
 import { Card, Title, Text, Button, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, TextInput, Select, SelectItem, Badge } from "@tremor/react";
 import { User, Users, Mail, Settings, LogOut, UserPlus, Send, Archive, Inbox, MessageSquarePlus } from 'lucide-react';
@@ -140,6 +141,40 @@ const TeamTab = ({ role, setActiveTab }) => {
   const [selectedLocation, setSelectedLocation] = useState("");
   const [usersList, setUsersList] = useState([]);
   const [locationsList, setLocationsList] = useState([]);
+  // Add User state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newUser, setNewUser] = useState({
+    username: '',
+    email: '',
+    password: '',
+    role: 'Staff'
+  });
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewUser(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('/api/workspace/users', newUser);
+      toast.success("User added successfully");
+      setIsModalOpen(false);
+      setNewUser({
+        username: '',
+        email: '',
+        password: '',
+        role: 'Staff'
+      });
+      fetchTeam();
+      if (role === 'Manager') {
+        fetchManagerData();
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.message || "Failed to add user");
+    }
+  };
 
   useEffect(() => {
     fetchTeam();
