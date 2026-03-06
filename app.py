@@ -31,8 +31,7 @@ db.init_app(app)
 
 # Start the background forecast scheduler immediately upon app instantiation
 # so it runs under gunicorn as well.
-from scheduler import init_scheduler
-init_scheduler()
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 
@@ -105,7 +104,7 @@ def role_required(*roles):
         def decorated_view(*args, **kwargs):
             if not current_user.is_authenticated:
                 return jsonify({'error': 'Unauthorized'}), 401
-            if current_user.role not in roles:
+            if current_user.role != 'Admin' and current_user.role not in roles:
                 return jsonify({'error': 'Forbidden: Insufficient privileges'}), 403
             return fn(*args, **kwargs)
         return decorated_view
@@ -803,6 +802,7 @@ def api_order_detail(order_id):
 # API: Confirm Order
 @app.route('/api/orders/<int:order_id>/confirm', methods=['POST'])
 @login_required
+@role_required('Manager', 'Admin')
 def api_confirm_order(order_id):
     order = ProductOrder.query.get(order_id)
     if not order:
@@ -1506,6 +1506,19 @@ def api_workspace_add_user():
     new_user = User(username=username, email=email, password_hash=generate_password_hash(password), role=role)
     db.session.add(new_user)
     db.session.commit()
+
+    # Automatically assign the new user to the same location as the admin creating them
+    # For simplicity, we just assign them to the first location of the admin
+    admin_loc = UserLocation.query.filter_by(uid=current_user.id).first()
+    if admin_loc:
+        new_user_loc = UserLocation(uid=new_user.id, location_id=admin_loc.location_id)
+        db.session.add(new_user_loc)
+        db.session.commit()
+    elif Location.query.first():
+        new_user_loc = UserLocation(uid=new_user.id, location_id=Location.query.first().id)
+        db.session.add(new_user_loc)
+        db.session.commit()
+
     return jsonify({'success': True, 'message': 'User created successfully', 'user_id': new_user.id})
 
 # API: Get Workspace Team
@@ -1516,23 +1529,23 @@ def api_workspace_team():
     user_locations = UserLocation.query.filter_by(uid=user.id).all()
     location_ids = [ul.location_id for ul in user_locations]
 
-    if user.role == 'Manager':
-        # Manager gets all members from all assigned locations, grouped by location
+    if user.role in ['Manager', 'Admin']:
+        # Manager and Admin get all members from all locations in the system, grouped by location
         team_data = []
-        for loc_id in location_ids:
-            loc = Location.query.get(loc_id)
-            if loc:
-                uls = UserLocation.query.filter_by(location_id=loc_id).all()
-                members = []
-                for ul in uls:
-                    member_user = User.query.get(ul.uid)
-                    if member_user:
-                        members.append({
-                            'id': member_user.id,
-                            'username': member_user.username,
-                            'email': member_user.email,
-                            'role': member_user.role
-                        })
+        all_locations = Location.query.all()
+        for loc in all_locations:
+            uls = UserLocation.query.filter_by(location_id=loc.id).all()
+            members = []
+            for ul in uls:
+                member_user = User.query.get(ul.uid)
+                if member_user:
+                    members.append({
+                        'id': member_user.id,
+                        'username': member_user.username,
+                        'email': member_user.email,
+                        'role': member_user.role
+                    })
+            if members:
                 team_data.append({
                     'location_id': loc.id,
                     'location_name': loc.description,
@@ -1612,19 +1625,25 @@ def api_mail_sent():
 def api_mail_send():
     data = request.json
     receiver_id = data.get('receiver_id')
+    receiver_email = data.get('receiver_email') # Allow passing email string directly
     subject = data.get('subject')
     body = data.get('body')
 
-    if not receiver_id or not subject or not body:
+    if not subject or not body:
         return jsonify({'success': False, 'message': 'Missing fields'}), 400
 
-    receiver = User.query.get(receiver_id)
+    receiver = None
+    if receiver_id:
+        receiver = User.query.get(receiver_id)
+    elif receiver_email:
+        receiver = User.query.filter_by(email=receiver_email).first()
+
     if not receiver:
         return jsonify({'success': False, 'message': 'Receiver not found'}), 404
 
     new_mail = InternalMail(
         sender_id=current_user.id,
-        receiver_id=receiver_id,
+        receiver_id=receiver.id,
         subject=subject,
         body=body
     )
@@ -1853,5 +1872,7 @@ def api_warehouse_product_stats():
 
 
 if __name__ == '__main__':
+    from scheduler import init_scheduler
+    init_scheduler()
     # No db.create_all() here, relying on seed script
     app.run(debug=True)

@@ -178,7 +178,14 @@ const Warehouse = () => {
               >
                 <div className="flex justify-between items-center">
                   <Title>Sales History (Last 30 Days) - {location.loc_code}</Title>
-                  <Text className="text-xs text-indigo-600 flex items-center">Click for Analysis <ArrowRight className="h-3 w-3 ml-1"/></Text>
+                  <div className="flex items-center space-x-2">
+                    <Text className="text-xs text-indigo-600 flex items-center">Click for Analysis <ArrowRight className="h-3 w-3 ml-1"/></Text>
+                    <Link to={`/forecast?location=${locationId}&product=${productId}`} onClick={(e) => e.stopPropagation()}>
+                        <button className="flex items-center justify-center rounded-md border border-transparent bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 transition-colors">
+                            <TrendingUp className="mr-1.5 h-3 w-3" /> Go to Forecast
+                        </button>
+                    </Link>
+                  </div>
                 </div>
                 <div className="mt-4 h-72">
                   <AreaChart

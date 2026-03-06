@@ -334,7 +334,12 @@ InventoryAI System`;
                 <Card className="col-span-1 md:col-span-2 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/forecast/${product.sku}`)}>
                     <div className="flex justify-between items-center">
                         <Title>Sales Trend</Title>
-                        <Text className="text-xs text-indigo-600 flex items-center">Click for Analysis <ArrowRight className="h-3 w-3 ml-1"/></Text>
+                        <div className="flex items-center space-x-2">
+                            <Text className="text-xs text-indigo-600 flex items-center">Click for Analysis <ArrowRight className="h-3 w-3 ml-1"/></Text>
+                            <Link to={`/forecast/${product.sku}`} onClick={(e) => e.stopPropagation()}>
+                                <Button size="xs" variant="secondary" icon={TrendingUp}>Go to Forecast</Button>
+                            </Link>
+                        </div>
                     </div>
                     <LineChart
                         className="mt-4 h-40"

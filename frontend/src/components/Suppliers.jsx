@@ -21,6 +21,17 @@ import { Fragment } from 'react';
 const Suppliers = () => {
   const role = localStorage.getItem('userRole') || 'Staff';
   const [vendors, setVendors] = useState([]);
+
+  if (role === 'Sales') {
+      return (
+          <Layout>
+              <div className="flex flex-col items-center justify-center h-full pt-20">
+                  <Title>Access Denied</Title>
+                  <Text>You do not have permission to view this page.</Text>
+              </div>
+          </Layout>
+      );
+  }
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newVendor, setNewVendor] = useState({

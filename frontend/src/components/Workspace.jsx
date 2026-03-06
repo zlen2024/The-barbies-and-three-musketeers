@@ -4,6 +4,8 @@ import { Card, Title, Text, Button, Table, TableHead, TableRow, TableHeaderCell,
 import { User, Users, Mail, Settings, LogOut, UserPlus, Send, Archive, Inbox, MessageSquarePlus } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
+import { Fragment } from 'react';
 
 const Workspace = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -134,6 +136,7 @@ const ProfileTab = () => {
 const TeamTab = ({ role, setActiveTab }) => {
   const [teamData, setTeamData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Manager assignment state
   const [selectedUser, setSelectedUser] = useState("");
@@ -141,9 +144,25 @@ const TeamTab = ({ role, setActiveTab }) => {
   const [usersList, setUsersList] = useState([]);
   const [locationsList, setLocationsList] = useState([]);
 
+  // New User state
+  const [newUser, setNewUser] = useState({
+    username: '',
+    email: '',
+    password: '',
+    role: 'Staff'
+  });
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewUser(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
   useEffect(() => {
     fetchTeam();
-    if (role === 'Manager') {
+    if (role === 'Manager' || role === 'Admin') {
         fetchManagerData();
     }
   }, [role]);
@@ -196,6 +215,20 @@ const TeamTab = ({ role, setActiveTab }) => {
       // Small hack: store recipient info temporarily so Mail tab can pick it up
       window.sessionStorage.setItem('composeTo', JSON.stringify({id: user.id, name: user.username}));
       setActiveTab('mail');
+  };
+
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    try {
+        await axios.post('/api/workspace/users', newUser);
+        toast.success("User added successfully");
+        setIsModalOpen(false);
+        setNewUser({ username: '', email: '', password: '', role: 'Staff' });
+        fetchTeam(); // refresh the list
+        fetchManagerData();
+    } catch (err) {
+        toast.error(err.response?.data?.message || "Failed to add user");
+    }
   };
 
   if (loading) return <Card><Text>Loading team...</Text></Card>;
@@ -463,11 +496,19 @@ const MailTab = () => {
           return;
       }
       try {
-          await axios.post('/api/workspace/mail/send', {
-              receiver_id: parseInt(composeTo),
+          // Check if composeTo is an email address or an ID
+          const isEmail = composeTo.includes('@');
+          const payload = {
               subject: composeSubject,
               body: composeBody
-          });
+          };
+          if (isEmail) {
+              payload.receiver_email = composeTo;
+          } else {
+              payload.receiver_id = parseInt(composeTo);
+          }
+
+          await axios.post('/api/workspace/mail/send', payload);
           toast.success("Mail sent!");
           setComposeTo("");
           setComposeSubject("");
@@ -528,12 +569,20 @@ const MailTab = () => {
               {view === 'compose' && (
                   <div className="space-y-4 max-w-2xl">
                       <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
-                          <Select value={composeTo} onValueChange={setComposeTo} placeholder="Select team member">
-                              {usersList.map(u => (
-                                  <SelectItem key={u.id} value={u.id.toString()}>{u.username} ({u.role})</SelectItem>
-                              ))}
-                          </Select>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">To (Email or Team Member ID)</label>
+                          <div className="flex gap-2">
+                              <TextInput
+                                  value={composeTo}
+                                  onChange={(e) => setComposeTo(e.target.value)}
+                                  placeholder="Enter email address or select below..."
+                                  className="flex-1"
+                              />
+                              <Select value={composeTo} onValueChange={setComposeTo} placeholder="Quick select..." className="w-1/3">
+                                  {usersList.map(u => (
+                                      <SelectItem key={u.id} value={u.id.toString()}>{u.username} ({u.role})</SelectItem>
+                                  ))}
+                              </Select>
+                          </div>
                       </div>
                       <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
