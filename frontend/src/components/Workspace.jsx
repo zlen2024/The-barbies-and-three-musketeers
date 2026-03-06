@@ -235,10 +235,17 @@ const TeamTab = ({ role, setActiveTab }) => {
       )}
 
       <Card>
-          <Title>My Team</Title>
-          <Text className="mb-4">Members of your assigned location(s).</Text>
+          <div className="flex justify-between items-center mb-4">
+              <div>
+                  <Title>My Team</Title>
+                  <Text>Members of your assigned location(s).</Text>
+              </div>
+              {role === 'Admin' && (
+                  <Button icon={UserPlus} onClick={() => setIsModalOpen(true)}>Add User</Button>
+              )}
+          </div>
 
-          {role === 'Manager' && teamData?.team_grouped ? (
+          {(role === 'Manager' || role === 'Admin') && teamData?.team_grouped ? (
               <div className="space-y-6">
                   {teamData.team_grouped.map((group) => (
                       <div key={group.location_id} className="border rounded-lg overflow-hidden">
@@ -301,6 +308,80 @@ const TeamTab = ({ role, setActiveTab }) => {
               </Table>
           )}
       </Card>
+
+      {/* Add User Modal */}
+      <Transition show={isModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setIsModalOpen(false)}>
+          <TransitionChild
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/30" />
+          </TransitionChild>
+
+          <div className="fixed inset-0 w-screen overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <TransitionChild
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                  <DialogTitle as="h3" className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                    Add New User
+                  </DialogTitle>
+                  <form onSubmit={handleAddUser} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Username</label>
+                      <TextInput name="username" value={newUser.username} onChange={handleInputChange} required />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Email</label>
+                      <TextInput name="email" type="email" value={newUser.email} onChange={handleInputChange} required />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Password</label>
+                      <TextInput name="password" type="password" value={newUser.password} onChange={handleInputChange} required />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                      <select
+                          name="role"
+                          value={newUser.role}
+                          onChange={handleInputChange}
+                          className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                      >
+                          <option value="Admin">Admin</option>
+                          <option value="Manager">Manager</option>
+                          <option value="Warehouse">Warehouse</option>
+                          <option value="Sales">Sales</option>
+                          <option value="Staff">Staff</option>
+                      </select>
+                    </div>
+                    <div className="mt-6 flex justify-end space-x-3">
+                      <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit">
+                        Add User
+                      </Button>
+                    </div>
+                  </form>
+                </DialogPanel>
+              </TransitionChild>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
     </div>
   );
 };
