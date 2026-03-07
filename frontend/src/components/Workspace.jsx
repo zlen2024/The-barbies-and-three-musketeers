@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import Layout from './Layout';
-import { Card, Title, Text, Button, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, TextInput, Select, SelectItem, Badge } from "@tremor/react";
+import { Card, Title, Text, Button, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, TextInput, Select, SelectItem, Badge, Textarea } from "@tremor/react";
 import { User, Users, Mail, Settings, LogOut, UserPlus, Send, Archive, Inbox, MessageSquarePlus } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const Workspace = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const role = localStorage.getItem('userRole') || 'Staff';
+  const location = useLocation();
+
+  useEffect(() => {
+      const searchParams = new URLSearchParams(location.search);
+      const tab = searchParams.get('tab');
+      if (tab === 'mail') setActiveTab('mail');
+  }, [location.search]);
 
   return (
     <Layout>
@@ -316,7 +324,12 @@ const MailTab = () => {
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
 
+  const location = useLocation();
+
   useEffect(() => {
+      const searchParams = new URLSearchParams(location.search);
+      const action = searchParams.get('action');
+
       // Check if we came from "Message" button
       const prefill = window.sessionStorage.getItem('composeTo');
       if (prefill) {
@@ -326,10 +339,23 @@ const MailTab = () => {
           window.sessionStorage.removeItem('composeTo');
       }
 
+      // Check if we came from AI Forecast Publish PO
+      const prefillSubject = window.sessionStorage.getItem('composeSubject');
+      const prefillBody = window.sessionStorage.getItem('composeBody');
+      if (prefillSubject || prefillBody) {
+          if (prefillSubject) setComposeSubject(prefillSubject);
+          if (prefillBody) setComposeBody(prefillBody);
+          setView('compose');
+          window.sessionStorage.removeItem('composeSubject');
+          window.sessionStorage.removeItem('composeBody');
+      } else if (action === 'compose' && view !== 'compose') {
+          setView('compose');
+      }
+
       if (view === 'inbox') fetchInbox();
       if (view === 'sent') fetchSent();
       if (view === 'compose') fetchUsers();
-  }, [view]);
+  }, [view, location.search]);
 
   const fetchInbox = async () => {
       setLoading(true);
