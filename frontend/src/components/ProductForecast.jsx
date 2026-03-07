@@ -255,7 +255,7 @@ const ProductForecast = () => {
 
   return (
     <Layout isFixed={true} isDark={true}>
-      <div className="flex h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex flex-1 min-h-0">
 
         {/* Left Sidebar - Markets / Products */}
         <div className="w-80 bg-gray-900 border-r border-gray-800 flex flex-col flex-none">
@@ -344,7 +344,7 @@ const ProductForecast = () => {
         </div>
 
         {/* Main Content Area - Charts and Controls */}
-        <div className="pb-100 flex-1 bg-gray-950 flex flex-col overflow-y-auto relative">
+        <div className="pb-6 flex-1 bg-gray-950 flex flex-col overflow-y-auto relative">
 
             {/* Header / Info Bar */}
             <div className="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6 flex-none">
