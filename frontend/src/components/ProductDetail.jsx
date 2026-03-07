@@ -120,7 +120,7 @@ Please confirm receipt and provide an estimated delivery date.
 
 Best regards,
 Procurement Manager
-InventoryAI System`;
+ChinHin Forecasting Pro System`;
       setEmailPreview(emailText);
   };
 

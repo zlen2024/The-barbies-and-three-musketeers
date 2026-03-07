@@ -49,10 +49,8 @@ const Layout = ({ children, isFixed = false, isDark = false }) => {
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
-                <div className="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center mr-2">
-                    <Package className="h-5 w-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-gray-900">InventoryAI</span>
+                <img src="/logo.png" alt="ChinHin Logo" className="h-8 w-auto mr-2" />
+                <span className="text-xl font-bold text-gray-900">ChinHin Forecasting Pro</span>
               </div>
               <nav className="hidden sm:ml-6 sm:flex sm:space-x-8">
                 {navItems.map((item) => {
@@ -141,7 +139,7 @@ const Layout = ({ children, isFixed = false, isDark = false }) => {
       <footer className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-t flex-shrink-0`}>
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <p className={`text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            &copy; {new Date().getFullYear()} InventoryAI. All rights reserved.
+            &copy; {new Date().getFullYear()} ChinHin Forecasting Pro. All rights reserved.
           </p>
         </div>
       </footer>

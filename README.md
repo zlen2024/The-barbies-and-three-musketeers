@@ -1,6 +1,6 @@
-# InventoryAI Flask Application with React Frontend
+# ChinHin Forecasting Pro Flask Application with React Frontend
 
-This repository contains the InventoryAI platform, a Procurement & Pricing intelligence tool that combines a Flask backend with a modern React frontend (using Tremor & Tailwind CSS).
+This repository contains the ChinHin Forecasting Pro platform, a Procurement & Pricing intelligence tool that combines a Flask backend with a modern React frontend (using Tremor & Tailwind CSS).
 
 ## 🚀 Quick Start (Production Mode)
 
