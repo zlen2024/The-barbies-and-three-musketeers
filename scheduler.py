@@ -115,7 +115,9 @@ def run_forecast_job():
 def forecast_scheduler():
     logger.info("Forecast scheduler thread started.")
 
-    # Skip running on startup, as it may use too much memory. Only run at midnight.
+    # Run once on startup (wait a few seconds for app to fully boot if needed)
+    time.sleep(10)
+    run_forecast_job()
 
     while True:
         now = datetime.now()

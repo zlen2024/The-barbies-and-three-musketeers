@@ -522,8 +522,9 @@ def api_margin_simulator_forecast():
                 sales_data.append({
                     'unique_id': unique_id,
                     'timestamp': row['date'].strftime('%Y-%m-%d'),
-                    'value': row['quantity'],
-                    'price': row['price']
+                    'value': row['subtotal'], # value is now subtotal for TimeGEN to forecast
+                    'price': row['price'],
+                    'quantity': row['quantity']
                 })
 
         if not sales_data:
@@ -539,7 +540,8 @@ def api_margin_simulator_forecast():
                 'unique_id': unique_id,
                 'timestamp': last_date.strftime('%Y-%m-%d'),
                 'value': 0,
-                'price': sales_data[-1]['price'] # carry forward last known price
+                'price': sales_data[-1]['price'], # carry forward last known price
+                'quantity': 0
             })
 
         # Ensure we have at least a few data points
@@ -547,7 +549,7 @@ def api_margin_simulator_forecast():
              logger.warning(f"Very few data points ({len(sales_data)}) for product_id={product_id}. The forecast might be inaccurate.")
 
         # Call the simulation
-        simulation_result = generate_margin_simulation(product_id, sales_data, final_price)
+        simulation_result = generate_margin_simulation(product_id, sales_data, float(proposed_price), float(volume_discount))
 
         if "error" in simulation_result:
             return jsonify({'success': False, 'message': simulation_result["error"]}), 500
@@ -555,8 +557,9 @@ def api_margin_simulator_forecast():
         # Return the actuals (historical) alongside the forecast
         actuals = [{
             "date": d['timestamp'],
-            "actual": d['value'],
-            "price": d['price']
+            "subtotal": d['value'],
+            "price": d['price'],
+            "quantity": d['quantity']
         } for d in sales_data]
 
         return jsonify({

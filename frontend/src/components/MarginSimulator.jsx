@@ -70,23 +70,33 @@ const MarginSimulator = () => {
             recentActuals.forEach(a => {
                 chartData.push({
                     date: a.date,
-                    'Actual Sales': a.actual,
-                    'Forecasted Volume': null
+                    'Historical Quantity': a.quantity,
+                    'Historical Price': a.price,
+                    'Historical Subtotal': a.subtotal,
+                    'Forecasted Quantity': null,
+                    'Forecasted Price': null,
+                    'Forecasted Subtotal': null
                 });
             });
 
             // Tie the last actual to the first forecast for continuity
             if (recentActuals.length > 0 && data.forecast.length > 0) {
                  const lastActual = recentActuals[recentActuals.length - 1];
-                 chartData[chartData.length - 1]['Forecasted Volume'] = lastActual.actual;
+                 chartData[chartData.length - 1]['Forecasted Quantity'] = lastActual.quantity;
+                 chartData[chartData.length - 1]['Forecasted Price'] = lastActual.price;
+                 chartData[chartData.length - 1]['Forecasted Subtotal'] = lastActual.subtotal;
             }
 
             // Add forecasts
             data.forecast.forEach(f => {
                 chartData.push({
                     date: f.date,
-                    'Actual Sales': null,
-                    'Forecasted Volume': f.volume
+                    'Historical Quantity': null,
+                    'Historical Price': null,
+                    'Historical Subtotal': null,
+                    'Forecasted Quantity': f.quantity,
+                    'Forecasted Price': f.price,
+                    'Forecasted Subtotal': f.subtotal
                 });
             });
 
@@ -262,10 +272,14 @@ const MarginSimulator = () => {
                                     className="mt-6 h-72"
                                     data={simulationData.chartData}
                                     index="date"
-                                    categories={["Actual Sales", "Forecasted Volume"]}
-                                    colors={["blue", "emerald"]}
+                                    categories={[
+                                        "Historical Subtotal", "Forecasted Subtotal",
+                                        "Historical Quantity", "Forecasted Quantity",
+                                        "Historical Price", "Forecasted Price"
+                                    ]}
+                                    colors={["blue", "blue-500", "emerald", "emerald-500", "amber", "amber-500"]}
                                     valueFormatter={numberFormatter}
-                                    yAxisWidth={40}
+                                    yAxisWidth={60}
                                 />
                             ) : (
                                 <div className="h-72 flex items-center justify-center text-gray-400">

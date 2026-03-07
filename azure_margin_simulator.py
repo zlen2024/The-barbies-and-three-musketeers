@@ -7,12 +7,13 @@ from flask import current_app
 
 logger = logging.getLogger(__name__)
 
-def generate_margin_simulation(product_id, sales_data, proposed_price):
+def generate_margin_simulation(product_id, sales_data, proposed_price, volume_discount_pct):
     """
     Run forecast generation using the Nixtla SDK to predict demand based on a proposed price.
     `sales_data` should be a list of dicts: [{'unique_id': str, 'timestamp': 'YYYY-MM-01', 'value': 123.4, 'price': 100.0}, ...]
     `product_id` is the ID of the product.
     `proposed_price` is the hypothetical price.
+    `volume_discount_pct` is the volume discount percentage (0-100).
     """
     try:
         api_key = os.environ.get('AZURE_TIMEGEN_API_KEY')
@@ -80,14 +81,26 @@ def generate_margin_simulation(product_id, sales_data, proposed_price):
             if pd.isna(pred_value):
                 pred_value = 0
 
+            # Calculate discounted subtotal
+            # The pred_value is the raw predicted subtotal
+            raw_subtotal = max(0, float(pred_value)) # Prevent negative forecasts
+            discounted_subtotal = raw_subtotal * (1 - (volume_discount_pct / 100.0))
+
+            # Calculate quantity based on proposed price
+            quantity = 0
+            if proposed_price > 0:
+                quantity = discounted_subtotal / proposed_price
+
             # We format it to YYYY-MM-DD for weekly data
             week_str = row['timestamp'].strftime("%Y-%m-%d")
-            volume = max(0, float(pred_value)) # Prevent negative forecasts
+
             forecast_results.append({
                 "date": week_str,
-                "volume": volume
+                "subtotal": discounted_subtotal,
+                "quantity": quantity,
+                "price": proposed_price
             })
-            total_predicted_volume += volume
+            total_predicted_volume += quantity
 
         return {
             "success": True,
