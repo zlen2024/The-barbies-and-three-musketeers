@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import { Card, Title, Text, Button, Select, SelectItem, TextInput, Textarea, Metric, Callout } from "@tremor/react";
-import { Search, Loader2, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { Search, Loader2, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react';
 import axios from 'axios';
 import {
   ComposedChart,
@@ -294,14 +294,28 @@ const ProductForecast = () => {
                         {/* KPI Cards Row */}
                         {kpi && Object.keys(kpi).length > 0 && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <Card decoration="top" decorationColor="indigo" className="bg-gray-900 border-gray-800">
-                                    <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Demand Momentum</Text>
+                                <Card decoration="top" decorationColor="indigo" className="bg-gray-900 border-gray-800 overflow-visible">
+                                    <div className="flex items-center justify-between group relative">
+                                        <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Demand Momentum</Text>
+                                        <HelpCircle className="h-4 w-4 text-gray-500 cursor-pointer" />
+                                        <div className="absolute z-50 invisible group-hover:visible bg-gray-800 border border-gray-700 text-gray-200 text-xs rounded p-3 w-64 top-full mt-2 left-1/2 transform -translate-x-1/2 shadow-xl">
+                                            <p className="font-semibold mb-1">Demand Momentum Formula</p>
+                                            <p className="text-gray-400">(Avg Sales Last 30 Days / Avg Sales Previous 30 Days) * 100</p>
+                                        </div>
+                                    </div>
                                     <Metric className="text-white font-bold">{renderValue(kpi.DemandMomentum, true)}</Metric>
                                     <div className="mt-2 text-sm text-gray-500">Growth: {renderValue(kpi.GrowthRate, true)}</div>
                                 </Card>
 
-                                <Card decoration="top" decorationColor={kpi.TrendLogic === 'Uptrend' ? 'emerald' : kpi.TrendLogic === 'Downtrend' ? 'rose' : 'gray'} className="bg-gray-900 border-gray-800">
-                                    <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Trend & Volatility</Text>
+                                <Card decoration="top" decorationColor={kpi.TrendLogic === 'Uptrend' ? 'emerald' : kpi.TrendLogic === 'Downtrend' ? 'rose' : 'gray'} className="bg-gray-900 border-gray-800 overflow-visible">
+                                    <div className="flex items-center justify-between group relative">
+                                        <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Trend & Volatility</Text>
+                                        <HelpCircle className="h-4 w-4 text-gray-500 cursor-pointer" />
+                                        <div className="absolute z-50 invisible group-hover:visible bg-gray-800 border border-gray-700 text-gray-200 text-xs rounded p-3 w-64 top-full mt-2 left-1/2 transform -translate-x-1/2 shadow-xl">
+                                            <p className="font-semibold mb-1">Trend & Volatility Formula</p>
+                                            <p className="text-gray-400">Trend = (Recent MA / Historical MA)<br/>Volatility = StdDev(Sales) / Mean(Sales)</p>
+                                        </div>
+                                    </div>
                                     <div className="flex items-center">
                                         {kpi.TrendLogic === 'Uptrend' && <TrendingUp className="h-6 w-6 text-emerald-500 mr-2" />}
                                         {kpi.TrendLogic === 'Downtrend' && <TrendingDown className="h-6 w-6 text-rose-500 mr-2" />}
@@ -310,13 +324,20 @@ const ProductForecast = () => {
                                     <div className="mt-2 text-sm text-gray-500">Volatility: {renderValue(kpi.Volatility)} | Range: {renderValue(kpi.Range)}</div>
                                 </Card>
 
-                                <Card decoration="top" decorationColor="amber" className="bg-gray-900 border-gray-800">
-                                    <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Inventory Health</Text>
+                                <Card decoration="top" decorationColor="amber" className="bg-gray-900 border-gray-800 overflow-visible">
+                                    <div className="flex items-center justify-between group relative">
+                                        <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Inventory Health</Text>
+                                        <HelpCircle className="h-4 w-4 text-gray-500 cursor-pointer" />
+                                        <div className="absolute z-50 invisible group-hover:visible bg-gray-800 border border-gray-700 text-gray-200 text-xs rounded p-3 w-64 top-full mt-2 left-1/2 transform -translate-x-1/2 shadow-xl">
+                                            <p className="font-semibold mb-1">Inventory Health Formula</p>
+                                            <p className="text-gray-400">Current Stock / (Avg Daily Sales * Lead Time)</p>
+                                        </div>
+                                    </div>
                                     <Metric className="text-white font-bold">{renderValue(kpi.StockCoverage)} <span className="text-sm font-normal text-gray-500">periods</span></Metric>
                                     <div className="mt-2 text-sm text-gray-500">Stock: {renderValue(kpi.CurrentStock)} | MA7: {renderValue(kpi.MA7)}</div>
                                 </Card>
 
-                                <Card decoration="top" decorationColor="blue" className="bg-gray-900 border-gray-800">
+                                <Card decoration="top" decorationColor="blue" className="bg-gray-900 border-gray-800 overflow-visible">
                                     <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Volume (Last 7 Periods)</Text>
                                     <Metric className="text-white font-bold">{renderValue(kpi.RollingSum7)}</Metric>
                                     <div className="mt-2 text-sm text-gray-500">Net Demand: {renderValue(kpi.NetDemand)}</div>

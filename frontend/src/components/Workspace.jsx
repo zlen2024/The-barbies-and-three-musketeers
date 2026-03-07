@@ -172,6 +172,28 @@ const TeamTab = ({ role, setActiveTab }) => {
     }
   };
 
+
+  const [newUser, setNewUser] = useState({ username: '', email: '', password: '', role: 'Staff' });
+  const [creatingUser, setCreatingUser] = useState(false);
+
+  const handleCreateUser = async () => {
+      if (!newUser.username || !newUser.email || !newUser.password || !newUser.role) {
+          alert('Please fill in all fields.');
+          return;
+      }
+      setCreatingUser(true);
+      try {
+          await axios.post('/api/users', newUser);
+          alert('User created successfully');
+          setNewUser({ username: '', email: '', password: '', role: 'Staff' });
+          fetchWorkspaceData(); // Refresh the users list
+      } catch (e) {
+          alert('Error creating user: ' + (e.response?.data?.error || e.message));
+      } finally {
+          setCreatingUser(false);
+      }
+  };
+
   const handleAssignLocation = async () => {
     if (!selectedUser || !selectedLocation) {
         toast.warning("Please select both a user and a location.");
@@ -234,11 +256,47 @@ const TeamTab = ({ role, setActiveTab }) => {
           </Card>
       )}
 
+      {role === 'Admin' && (
+          <Card>
+            <Title>Add New User</Title>
+            <Text>Create a new system user account.</Text>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                    <TextInput value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} placeholder="Username" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <TextInput value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} placeholder="Email" type="email" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <TextInput value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="Password" type="password" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                    <Select value={newUser.role} onValueChange={val => setNewUser({...newUser, role: val})} placeholder="Select Role">
+                        {['Admin', 'Manager', 'Warehouse', 'Procurement', 'Sales', 'Staff'].map(r => (
+                            <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                    </Select>
+                </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+                <Button icon={UserPlus} onClick={handleCreateUser} disabled={creatingUser}>
+                    {creatingUser ? 'Creating...' : 'Create User'}
+                </Button>
+            </div>
+          </Card>
+      )}
+
+
       <Card>
           <Title>My Team</Title>
           <Text className="mb-4">Members of your assigned location(s).</Text>
 
-          {role === 'Manager' && teamData?.team_grouped ? (
+          {(role === 'Manager' || role === 'Admin') && teamData?.team_grouped ? (
               <div className="space-y-6">
                   {teamData.team_grouped.map((group) => (
                       <div key={group.location_id} className="border rounded-lg overflow-hidden">
