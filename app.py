@@ -1,4 +1,7 @@
 import os
+import gevent.monkey
+gevent.monkey.patch_all()
+
 import math
 import logging
 import traceback
@@ -7,6 +10,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from functools import wraps
 from sqlalchemy.orm import joinedload
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
+from flask_socketio import SocketIO, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, SaleItem, Forecast, UserLocation, Invoice
 
@@ -28,6 +32,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 # Start the background forecast scheduler immediately upon app instantiation
 # so it runs under gunicorn as well.
@@ -1694,6 +1700,140 @@ def api_assign_location():
         return jsonify({'success': False, 'message': 'Database error occurred while assigning Location'}), 500
 
 
+# WebSocket Endpoint for Forecasting
+import pandas as pd
+from nixtla import NixtlaClient
+import traceback
+
+@socketio.on('generate_forecast_ws')
+def handle_generate_forecast_ws(data):
+    try:
+        if not current_user.is_authenticated:
+            emit('forecast_error', {'error': 'Unauthorized'})
+            return
+
+        emit('forecast_progress', {'status': 'Initializing AI models...', 'progress': 10})
+
+        historical_data = data.get('historical_data', [])
+        interval = data.get('interval', 'daily')
+
+        if not historical_data:
+            emit('forecast_error', {'error': 'No historical data provided.'})
+            return
+
+        emit('forecast_progress', {'status': 'Processing historical data...', 'progress': 30})
+
+        # Format for Nixtla TimeGEN
+        sales_data = []
+        for row in historical_data:
+            sales_data.append({
+                'timestamp': row['date'],
+                'value': float(row['volume']) if 'volume' in row else 0.0
+            })
+
+        df = pd.DataFrame(sales_data)
+
+        # Depending on the interval string format from Recharts, we might need robust parsing
+        # but timegen can handle raw strings if they are formatted cleanly, or we let TimeGen auto-detect.
+        # Since the chart can pass ranges like "2023-01-01 to 2023-01-07", we need to just use the start date
+        def clean_date(d):
+            if ' to ' in d:
+                return d.split(' to ')[0]
+            if len(d) > 10:  # e.g., 'Jan 2024'
+                try:
+                    return datetime.strptime(d, "%b %Y").strftime("%Y-%m-01")
+                except:
+                    return d
+            return d
+
+        df['timestamp'] = df['timestamp'].apply(clean_date)
+        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        df = df.dropna(subset=['timestamp'])
+        df = df.sort_values(by='timestamp')
+
+        if df.empty:
+            emit('forecast_error', {'error': 'Failed to parse dates from historical data.'})
+            return
+
+        horizon = max(1, int(len(df) / 3))
+        freq_map = {
+            'daily': 'D',
+            'weekly': '7D',
+            'biweekly': '14D',
+            'monthly': 'MS'
+        }
+        freq = freq_map.get(interval, 'D')
+
+        emit('forecast_progress', {'status': f'Connecting to Azure TimeGEN-1 (Horizon: {horizon} periods)...', 'progress': 50})
+
+        api_key = os.environ.get('AZURE_TIMEGEN_API_KEY')
+        if not api_key:
+            emit('forecast_error', {'error': 'AZURE_TIMEGEN_API_KEY not found in environment.'})
+            return
+
+        client = NixtlaClient(
+            base_url="https://TimeGEN-1-ChinHin.eastus2.models.ai.azure.com",
+            api_key=api_key
+        )
+
+        emit('forecast_progress', {'status': 'Generating multi-horizon predictions...', 'progress': 70})
+
+        print(f"[DEBUG WebSocket] Requesting TimeGEN-1 Forecast with horizon: {horizon}, df length: {len(df)}")
+        print(f"[DEBUG WebSocket] DataFrame head:\n{df.head()}")
+        print(f"[DEBUG WebSocket] DataFrame tail:\n{df.tail()}")
+
+        # Generate forecast
+        timegen_fcst_df = client.forecast(
+            df=df,
+            h=horizon,
+            freq=freq,
+            time_col='timestamp',
+            target_col='value'
+        )
+
+        emit('forecast_progress', {'status': 'Finalizing payload...', 'progress': 90})
+
+        # Process the result
+        forecast_results = []
+
+        # Find the prediction column (anything other than timestamp)
+        pred_col = None
+        for col in timegen_fcst_df.columns:
+            if col != 'timestamp':
+                pred_col = col
+                break
+
+        if not pred_col:
+            emit('forecast_error', {'error': 'No prediction column returned from TimeGEN API.'})
+            return
+
+        for index, row in timegen_fcst_df.iterrows():
+            pred_value = row.get(pred_col, 0)
+            if pd.isna(pred_value):
+                pred_value = 0
+
+            # Formatting label back to match the interval UI roughly, or just pass ISO
+            if interval == 'monthly':
+                label = row['timestamp'].strftime("%b %Y")
+            elif interval == 'weekly' or interval == 'biweekly':
+                end_d = row['timestamp'] + timedelta(days=6 if interval=='weekly' else 13)
+                label = f"{row['timestamp'].strftime('%Y-%m-%d')} to {end_d.strftime('%Y-%m-%d')}"
+            else:
+                label = row['timestamp'].strftime("%Y-%m-%d")
+
+            forecast_results.append({
+                "date": label,
+                "projected_volume": max(0, float(pred_value)) # Prevent negative forecasts
+            })
+
+        emit('forecast_progress', {'status': 'Complete', 'progress': 100})
+        emit('forecast_complete', {'forecast': forecast_results})
+
+    except Exception as e:
+        logger.error(f"WebSocket Forecast Error: {str(e)}\n{traceback.format_exc()}")
+        emit('forecast_error', {'error': f"Server error: {str(e)}"})
+
+
 # Serve React App for all other routes
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -2084,4 +2224,4 @@ def api_warehouse_product_stats():
 
 if __name__ == '__main__':
     # No db.create_all() here, relying on seed script
-    app.run(debug=True)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
