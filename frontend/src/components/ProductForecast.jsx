@@ -43,6 +43,13 @@ const ProductForecast = () => {
       MA14: false
   });
 
+  // AI Analysis State
+  const [screenshotFile, setScreenshotFile] = useState(null);
+  const [screenshotPreview, setScreenshotPreview] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisReport, setAnalysisReport] = useState(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
   const locationSearch = useLocation();
   const navigate = useNavigate();
 
@@ -100,7 +107,10 @@ const ProductForecast = () => {
       const fetchData = async () => {
           setDataLoading(true);
           try {
-              const res = await axios.get(`/api/forecast/data?location_id=${selectedLocation}&product_id=${selectedProduct}&interval=${timeInterval}`);
+              let url = `/api/forecast/data?location_id=${selectedLocation}&product_id=${selectedProduct}&interval=${timeInterval}`;
+              if (sampleSize) url += `&sample_size=${sampleSize}`;
+              if (projectionSize) url += `&projection_size=${projectionSize}`;
+              const res = await axios.get(url);
               // API now returns { chartData, kpi, alerts }
               if (res.data.chartData) {
                   setChartData(res.data.chartData);
@@ -144,6 +154,46 @@ const ProductForecast = () => {
 
   const handleProject = () => {
       alert(`Projecting forecast using:\nSample Size: ${sampleSize} days\nProjection: ${projectionSize} month(s)\nPrompt: ${analysisPrompt}`);
+  };
+
+  const handleImageUpload = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+          setScreenshotFile(file);
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              setScreenshotPreview(reader.result);
+          };
+          reader.readAsDataURL(file);
+      }
+  };
+
+  const handleGenerateReport = async () => {
+      if (!screenshotPreview) {
+          alert("Please upload a screenshot of the chart first.");
+          return;
+      }
+
+      setAnalyzing(true);
+      try {
+          const res = await axios.post('/api/forecast/analyze', {
+              image: screenshotPreview,
+              fundamental_data: analysisPrompt
+          });
+
+          if (res.data.success) {
+              setAnalysisReport(res.data.report);
+              // Clear inputs after success
+              setScreenshotFile(null);
+              setScreenshotPreview(null);
+              setAnalysisPrompt('');
+          }
+      } catch (err) {
+          console.error("Analysis failed", err);
+          alert("Failed to generate report. Please try again.");
+      } finally {
+          setAnalyzing(false);
+      }
   };
 
   // Helper to render KPI value and handle nulls
@@ -486,39 +536,48 @@ const ProductForecast = () => {
                                 </h3>
 
                                 <div className="grid grid-cols-12 gap-6">
-                                    <div className="col-span-4 space-y-4">
+                                    <div className="col-span-6 space-y-4">
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-400 mb-1">Sample Size (Historical Data)</label>
+                                            <label className="block text-xs font-medium text-gray-400 mb-1">Sample Size (Historical Data Periods)</label>
                                             <Select value={sampleSize} onValueChange={setSampleSize} className="dark-theme-select">
-                                                <SelectItem value="10">Last 10 Days</SelectItem>
-                                                <SelectItem value="30">Last 30 Days</SelectItem>
-                                                <SelectItem value="60">Last 60 Days</SelectItem>
+                                                <SelectItem value="10">Last 10 Periods</SelectItem>
+                                                <SelectItem value="30">Last 30 Periods</SelectItem>
+                                                <SelectItem value="60">Last 60 Periods</SelectItem>
+                                                <SelectItem value="140">Last 140 Periods</SelectItem>
                                             </Select>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-400 mb-1">Projection Horizon</label>
+                                            <label className="block text-xs font-medium text-gray-400 mb-1">Projection Horizon (Periods)</label>
                                             <Select value={projectionSize} onValueChange={setProjectionSize} className="dark-theme-select">
-                                                <SelectItem value="1">1 Month</SelectItem>
-                                                <SelectItem value="2">2 Months</SelectItem>
+                                                <SelectItem value="4">4 Periods</SelectItem>
+                                                <SelectItem value="9">9 Periods (Default)</SelectItem>
+                                                <SelectItem value="12">12 Periods</SelectItem>
+                                                <SelectItem value="24">24 Periods</SelectItem>
                                             </Select>
                                         </div>
-                                    </div>
-
-                                    <div className="col-span-8 flex flex-col">
-                                        <label className="block text-xs font-medium text-gray-400 mb-1">Fundamental Analysis Prompt</label>
-                                        <Textarea
-                                            placeholder="Enter context for the reasoning model (e.g., 'Upcoming marketing campaign next week', 'Holiday season approaching', 'Competitor stockout')..."
-                                            className="flex-1 min-h-[80px] bg-gray-950 border-gray-700 text-gray-200 placeholder-gray-600 focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm"
-                                            value={analysisPrompt}
-                                            onChange={(e) => setAnalysisPrompt(e.target.value)}
-                                        />
                                     </div>
                                 </div>
 
                                 <div className="mt-4 flex justify-end">
                                     <Button
                                         color="indigo"
-                                        onClick={handleProject}
+                                        onClick={() => {
+                                            if (selectedLocation && selectedProduct) {
+                                                setDataLoading(true);
+                                                let url = `/api/forecast/data?location_id=${selectedLocation}&product_id=${selectedProduct}&interval=${timeInterval}`;
+                                                if (sampleSize) url += `&sample_size=${sampleSize}`;
+                                                if (projectionSize) url += `&projection_size=${projectionSize}`;
+                                                axios.get(url).then(res => {
+                                                    if (res.data.chartData) {
+                                                        setChartData(res.data.chartData);
+                                                        setKpi(res.data.kpi || {});
+                                                        setAlerts(res.data.alerts || []);
+                                                    }
+                                                }).catch(err => {
+                                                    console.error(err);
+                                                }).finally(() => setDataLoading(false));
+                                            }
+                                        }}
                                         disabled={!selectedProduct || dataLoading}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-8"
                                     >
@@ -527,6 +586,131 @@ const ProductForecast = () => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* AI Analysis Section */}
+                        <div className="bg-gray-900 border border-gray-800 p-6 flex-none rounded-lg mt-4">
+                            <div className="max-w-4xl">
+                                <h3 className="text-gray-300 font-medium mb-4 flex items-center">
+                                    <span className="bg-emerald-500/20 text-emerald-400 p-1 rounded mr-2">
+                                        <TrendingUp className="h-4 w-4" />
+                                    </span>
+                                    Fundamental & Technical Analysis
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-400 mb-2">1. Upload Chart Screenshot</label>
+                                        <div className="flex items-center justify-center w-full">
+                                            <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-700 border-dashed rounded-lg cursor-pointer bg-gray-950 hover:bg-gray-800">
+                                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                                    <UploadCloud className="w-8 h-8 mb-2 text-gray-500" />
+                                                    <p className="mb-2 text-sm text-gray-400"><span className="font-semibold">Click to upload</span></p>
+                                                    <p className="text-xs text-gray-500">PNG, JPG or WEBP</p>
+                                                </div>
+                                                <input id="dropzone-file" type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                            </label>
+                                        </div>
+                                        {screenshotPreview && (
+                                            <div className="mt-2 text-sm text-emerald-500 flex items-center">
+                                                <CheckCircle className="w-4 h-4 mr-1" /> Image attached successfully
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex flex-col">
+                                        <label className="block text-xs font-medium text-gray-400 mb-2">2. Enter Fundamental Data</label>
+                                        <Textarea
+                                            placeholder="Enter context for the reasoning model (e.g., 'Upcoming marketing campaign next week', 'Holiday season approaching', 'Competitor stockout')..."
+                                            className="flex-1 min-h-[128px] bg-gray-950 border-gray-700 text-gray-200 placeholder-gray-600 focus:ring-emerald-500 focus:border-emerald-500 rounded-md shadow-sm"
+                                            value={analysisPrompt}
+                                            onChange={(e) => setAnalysisPrompt(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 flex justify-between items-center">
+                                    {analysisReport && (
+                                        <Button
+                                            color="emerald"
+                                            onClick={() => setIsReportModalOpen(true)}
+                                            className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/50"
+                                            icon={FileText}
+                                        >
+                                            Ready Report
+                                        </Button>
+                                    )}
+                                    {!analysisReport && <div></div>}
+
+                                    <Button
+                                        color="emerald"
+                                        onClick={handleGenerateReport}
+                                        disabled={!selectedProduct || dataLoading || analyzing || !screenshotPreview}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-8"
+                                    >
+                                        {analyzing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> Generating...</> : "Generate Report Analysis"}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Analysis Report Modal */}
+                        <Transition appear show={isReportModalOpen} as={Fragment}>
+                            <Dialog as="div" className="relative z-50" onClose={() => setIsReportModalOpen(false)}>
+                                <Transition.Child
+                                    as={Fragment}
+                                    enter="ease-out duration-300"
+                                    enterFrom="opacity-0"
+                                    enterTo="opacity-100"
+                                    leave="ease-in duration-200"
+                                    leaveFrom="opacity-100"
+                                    leaveTo="opacity-0"
+                                >
+                                    <div className="fixed inset-0 bg-black bg-opacity-75" />
+                                </Transition.Child>
+
+                                <div className="fixed inset-0 overflow-y-auto">
+                                    <div className="flex min-h-full items-center justify-center p-4 text-center">
+                                        <Transition.Child
+                                            as={Fragment}
+                                            enter="ease-out duration-300"
+                                            enterFrom="opacity-0 scale-95"
+                                            enterTo="opacity-100 scale-100"
+                                            leave="ease-in duration-200"
+                                            leaveFrom="opacity-100 scale-100"
+                                            leaveTo="opacity-0 scale-95"
+                                        >
+                                            <Dialog.Panel className="w-full max-w-4xl transform overflow-hidden rounded-2xl bg-gray-900 border border-gray-700 p-6 text-left align-middle shadow-xl transition-all">
+                                                <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-100 border-b border-gray-700 pb-4 flex justify-between items-center">
+                                                    <span>AI Forecast Analysis Report</span>
+                                                    <Button variant="light" color="gray" onClick={() => setIsReportModalOpen(false)}>Close</Button>
+                                                </Dialog.Title>
+
+                                                <div className="mt-4 max-h-[60vh] overflow-y-auto prose prose-invert prose-emerald max-w-none">
+                                                    {analysisReport && <ReactMarkdown>{analysisReport}</ReactMarkdown>}
+                                                </div>
+
+                                                <div className="mt-6 border-t border-gray-700 pt-4 flex justify-end">
+                                                    <Button
+                                                        color="indigo"
+                                                        icon={Send}
+                                                        onClick={() => {
+                                                            // Logic for step 6: Send Report as Product Order via Mail system
+                                                            const poSubject = `Product Order / Forecast Report: ${selectedProduct}`;
+                                                            window.sessionStorage.setItem('composeSubject', poSubject);
+                                                            window.sessionStorage.setItem('composeBody', analysisReport);
+                                                            navigate('/workspace?tab=mail&action=compose');
+                                                        }}
+                                                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                                                    >
+                                                        Publish Purchase Order
+                                                    </Button>
+                                                </div>
+                                            </Dialog.Panel>
+                                        </Transition.Child>
+                                    </div>
+                                </div>
+                            </Dialog>
+                        </Transition>
                     </>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-gray-500 border-2 border-dashed border-gray-800 rounded-lg h-full">

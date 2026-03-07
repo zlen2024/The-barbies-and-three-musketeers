@@ -4,3 +4,5 @@ Flask-Login
 gunicorn
 nixtla
 pandas
+openai
+azure-identity
