@@ -1,108 +1,145 @@
-# ChinhinForcastingPro - Complete Documentation & Solution Walkthrough
+# ChinhinForcastingPro - Complete Architecture & Solution Walkthrough
 
-## 1. Software Requirements Specification (SRS)
-
-### 1.1 Purpose
-The purpose of this document is to specify the software requirements for **ChinhinForcastingPro** (formerly InventoryAI), a comprehensive Procurement and Pricing intelligence platform. This system is designed to replace manual, spreadsheet-based procurement and pricing guesswork with an automated, AI-driven engine.
-
-### 1.2 Scope
-ChinhinForcastingPro solves two primary business challenges:
-1. **Business Challenge 4 (Procurement):** Building an "Intelligent Procurement Planning Agent" that predicts stock needs based on historical sales velocity and seasonality, and automatically generates Purchase Requests (PRs).
-2. **Business Challenge 9 (Sales & Pricing):** Building an "AI Pricing Strategist" that dynamically recommends optimal prices to maximize profit margins and sales velocity, replacing "gut-feel" gambling.
-
-### 1.3 Overall Description
-The system is a web-based application built using a React frontend (with Tremor and Tailwind CSS for UI) and a Python/Flask backend. It implements Role-Based Access Control (RBAC) to serve distinct workflows for Admin/Procurement, Warehouse, Sales, and Manager personas.
-
-### 1.4 System Features
-
-#### 1.4.1 AI Supply Chain Brain (Predictive Demand Forecasting)
-*   **Description:** An AI model utilizing Azure TimeGEN-1 (via Nixtla) that analyzes historical sales data to auto-generate precise procurement plans by SKU and Location.
-*   **Capabilities:**
-    *   Dynamic interval forecasting (Daily, Weekly, Bi-weekly, Monthly).
-    *   Moving Average (MA3, MA7, MA14) trend overlays.
-    *   Natural language analysis prompts for deep-dive context ("Smart Why Rationale").
-
-#### 1.4.2 Automated PR Engine & Smart Approver Dashboard
-*   **Description:** Converts forecasted demand into actionable Purchase Requests.
-*   **Capabilities:**
-    *   Instant auto-generation of PRs routed to the correct approver based on location.
-    *   A Decision Cockpit (Workspace/Manager Dashboard) that provides approvers with context (e.g., Stock Coverage, Risk levels) for faster decisions.
-
-#### 1.4.3 Dynamic Pricing Engine & Margin Simulator
-*   **Description:** An AI-driven module within the Sales Hub that recommends pricing strategies.
-*   **Capabilities:**
-    *   Instant analysis of customer history, stock aging, and market demand.
-    *   Margin simulation tools allowing sales managers to visualize the predicted impact on revenue and profit prior to quoting.
+## 1. Executive Summary
+**ChinhinForcastingPro** is an enterprise-grade Procurement and Pricing intelligence platform. It replaces manual, disjointed spreadsheet processes with an automated, AI-driven engine. The platform specifically addresses two core supply chain pain points:
+1.  **Business Challenge 4 (Procurement):** An "Intelligent Procurement Planning Agent" that utilizes predictive demand forecasting (via Azure TimeGEN-1) to eliminate the "Excel Guessing Game," automatically generating Purchase Requests (PRs) based on historical sales velocity.
+2.  **Business Challenge 9 (Sales & Pricing):** An "AI Pricing Strategist" that dynamically recommends optimal quoting prices. It replaces "gut-feel" gambling by analyzing customer history, stock aging, and market demand to maximize profit margins.
 
 ---
 
-## 2. Software Design Description (SDD)
+## 2. Software Requirements Specification (SRS)
 
-### 2.1 System Architecture
-The application follows a standard three-tier architecture:
-1.  **Presentation Tier:** React.js frontend utilizing Tremor for data visualization (charts, KPIs) and Tailwind CSS for responsive styling. State management is handled via React Hooks and `localStorage` for session persistence.
-2.  **Application Tier:** Python Flask RESTful API. It manages business logic, routing, role-based authentication (`flask_login`), and integration with external AI APIs (Azure TimeGEN via `nixtla` SDK). Long-running background forecasting tasks are handled via Python threading to unblock the main server.
-3.  **Data Tier:** A relational database (SQLite for local development, T-SQL for production deployment) managed via SQLAlchemy ORM.
+### 2.1 Functional Requirements
 
-### 2.2 Database Architecture
-The database is structured to support complex supply chain and sales operations across multiple locations.
+#### 2.1.1 AI Supply Chain Brain (Forecasting Module)
+*   **FR-1:** The system must aggregate historical sales data (`SaleItem` quantities) across customizable time intervals (Daily, Weekly, Bi-weekly, Monthly).
+*   **FR-2:** The system must integrate with Azure TimeGEN-1 via the `nixtla` SDK to generate 9-week future time-series predictions.
+*   **FR-3:** The system must cache forecasting results in the database (`Forecast` table) as JSON arrays to prevent redundant external API calls and ensure sub-second dashboard load times.
+*   **FR-4:** The system must automatically trigger background thread updates for stale forecasts using `threading.Lock()` to prevent duplicate concurrent API requests.
+*   **FR-5:** The system must overlay statistical Moving Averages (MA3, MA7, MA14) against historical actuals on the frontend to provide immediate visual context.
 
-#### Core Entity Relationships:
-*   **Users & RBAC:** The `Users` table dictates access via the `role` attribute. The `UserLocation` table creates a many-to-many relationship mapping users to specific physical or online `Locations`, enforcing data-level visibility.
-*   **Inventory Model:** The `Product` table holds global SKU data. The `ProductLoc` table maps products to locations, tracking `quantity_on_hand` at a granular level.
-*   **Supply Chain:** `Vendors` are linked to products via `ProductVendor` (storing cost price and lead times). `ProductOrder` tracks the lifecycle of PRs and POs, linking back to the user and location.
-*   **Sales & Pricing:** `Pricing` records establish base and regional prices. The `Sale` and `SaleItem` tables track actual transactions, reducing `ProductLoc` inventory upon completion. `Invoices` are generated from Sales.
-*   **Forecasting Cache:** The `Forecast` table caches heavy AI prediction data (stored as JSON) and confidence scores to ensure fast dashboard load times without repeatedly hitting the external Azure API.
+#### 2.1.2 Automated PR Engine & Smart Approver Dashboard
+*   **FR-6:** The system must allow users to auto-generate a Purchase Request (PR) directly from a Forecast view, calculating the required quantity based on current `quantity_on_hand` vs. `projected_demand`.
+*   **FR-7:** PRs must be automatically routed to the correct Manager based on the `Location` of the requester.
+*   **FR-8:** Managers must have a "Decision Cockpit" (Workspace) displaying instant context (e.g., Stock Coverage risk) to approve or reject PRs.
+*   **FR-9:** Approved PRs must transition to a 'Confirmed' status, ready for Supplier generation.
 
-*(For the complete T-SQL deployment schema, refer to `deployment_schema.md` in the repository).*
+#### 2.1.3 Dynamic Pricing Engine & Margin Simulator
+*   **FR-10:** The Sales Hub must provide a quoting interface that links directly to real-time inventory levels (`ProductLoc`).
+*   **FR-11:** The system must calculate a recommended optimal price based on base cost, regional pricing (`Pricing` table), and current stock aging.
+*   **FR-12:** The system must provide a "Margin Simulator" allowing sales managers to visualize predicted revenue, profit amount, and margin percentage dynamically as they adjust the quote price.
+*   **FR-13:** The system must provide a "Smart Why Rationale" explaining the logic behind the suggested price (e.g., highlighting aging inventory discounts).
 
----
+#### 2.1.4 Role-Based Access Control (RBAC) & Internal Communication
+*   **FR-14:** The system must enforce access control across five primary roles: Admin, Manager, Procurement, Warehouse, and Sales.
+*   **FR-15:** Inventory visibility must be restricted based on the `UserLocation` mapping table (except for global Admin overrides).
+*   **FR-16:** The system must include a native internal mail system (`InternalMail`) to allow cross-departmental communication without leaving the platform.
 
-## 3. User Guide
-
-### 3.1 How to Login
-1.  Navigate to the application URL (e.g., `http://localhost:5173` locally).
-2.  Enter your credentials. Two default testing accounts are provisioned:
-    *   **Procurement/Admin:** Email: `admin@inventory.ai` | Password: `admin123`
-    *   **Sales:** Email: `sales@inventory.ai` | Password: `sales123`
-3.  Click "Sign in". The system will route you to your role-specific dashboard.
-
-### 3.2 Navigation & Roles
-The left-hand sidebar adapts based on your role:
-*   **Dashboard:** High-level metrics (Total Stock, Active PRs, Revenue).
-*   **Inventory:** Live view of stock across locations.
-*   **Forecast (Challenge 4):** The AI Demand Prediction engine.
-*   **Sales Hub (Challenge 9):** Quotation, Invoicing, and Pricing Strategy.
-*   **Orders:** Track Purchase Requests and Supplier Orders.
-*   **Suppliers:** Vendor Management (Restricted to Admin/Manager/Procurement).
-*   **Workspace:** Internal mail, team management, and PR approvals.
+### 2.2 Non-Functional Requirements
+*   **Security:** Enforce global HTTP security headers (HSTS, CSP, X-Frame-Options) via Flask `@app.after_request` hooks. Production secrets (e.g., `AZURE_TIMEGEN_API_KEY`) must be injected via environment variables. Session management relies on secure cookies via `flask_login`.
+*   **Performance:** Complex aggregations (e.g., Average Monthly Sales) must utilize bulk SQL aggregation (e.g., `db.func.sum`) to prevent N+1 query bottlenecks in SQLite/Gunicorn environments.
+*   **Resilience:** If the Azure TimeGEN API fails, the system must degrade gracefully, using local caching, logging the error, and setting a `forecast_unavailable` UI flag rather than crashing.
 
 ---
 
-## 4. Solution Walkthrough
+## 3. Software Design Description (SDD)
 
-This section demonstrates how the system solves the two primary business challenges.
+### 3.1 System Architecture
 
-### 4.1 Solving Challenge 4: The Intelligent Procurement Agent
-**Scenario:** A Procurement Officer needs to order stock for the upcoming month without playing the "Excel Guessing Game".
+ChinhinForcastingPro utilizes a decoupled, three-tier architecture ensuring maintainability and scalability.
 
-**Steps:**
-1.  **AI Analysis:** The user navigates to the **Forecast** tab. They select a Location and a specific Product (e.g., "Kettles").
-2.  **View Predictions:** The AI Supply Chain Brain queries historical data and displays a projected demand curve overlaid with historical actuals and Moving Averages.
-3.  **Smart Rationale:** The system provides the "Smart Why" rationale, explaining *why* a certain volume is predicted (e.g., highlighting an upcoming seasonal spike).
-4.  **Automated PR Generation:** Instead of manually calculating lead times and emailing suppliers, the user clicks **Generate Purchase Request** directly from the forecast view. The system auto-calculates the required quantity based on current `quantity_on_hand` vs. `projected_demand`.
-5.  **Smart Approval:** The PR is routed to the **Workspace** of the relevant Manager. The Manager views the "Decision Cockpit", seeing instant context (Stock Coverage, Risk) and clicks "Approve" to finalize the order.
+1.  **Presentation Tier (Frontend):**
+    *   **Framework:** React.js bootstrapped with Vite for hot-module replacement and rapid bundling.
+    *   **Styling & UI Components:** Tailwind CSS for utility-first styling. Tremor UI is utilized for specialized dashboard components (Cards, Metrics, layout grids). Headless UI is used for accessible interactive components (Modals, Dropdowns).
+    *   **Charting:** Recharts is heavily utilized for complex, interactive data visualizations (e.g., resizable X-axes via `Brush` in the `ProductForecast.jsx` component) to overlay historical actuals, AI predictions, and Moving Averages without visual clipping.
+    *   **State Management:** React Hooks (`useState`, `useEffect`) manage local component state. `localStorage` is used to persist user session data (`userRole`, `username`, `userId`) to drive conditional UI rendering (`ProtectedRoute` wrapper). Session data is used to pass temporary context between views (e.g., navigating to the Mail Composer).
 
-**Outcome:** The "Excel Trap" is eliminated. Inventory balance is maintained, and manual bottlenecks are removed.
+2.  **Application Tier (Backend):**
+    *   **Framework:** Python Flask providing RESTful API endpoints (`/api/*`).
+    *   **Authentication:** `flask_login` manages secure user sessions using a `UserMixin` model.
+    *   **Background Processing:** Time-consuming operations (like AI forecasting via `azure_forecast.py`) are offloaded to background threads. The `trigger_forecast_generation` function utilizes a `threading.Lock()` (`_generating_forecasts` set) to ensure that if multiple users request a forecast for the same product simultaneously, only one external API call is made. A custom `scheduler.py` runs tasks daily at midnight to pre-warm the cache.
+    *   **AI Integration:** The `nixtla` SDK wraps calls to Azure TimeGEN-1. The system dynamically extracts the prediction column from the returned Pandas DataFrame to handle API version variations.
 
-### 4.2 Solving Challenge 9: AI Pricing Strategist
-**Scenario:** A Sales Manager receives a bulk request from a dealer and needs to quote a price that wins the deal without sacrificing margin.
+3.  **Data Tier (Database):**
+    *   **ORM:** SQLAlchemy handles all database transactions and model definitions (`models.py`).
+    *   **Database Engine:** SQLite is utilized for local development (`instance/inventory.db`), while Transact-SQL (T-SQL) is utilized for the production deployment environment (as detailed in `deployment_schema.md`).
 
-**Steps:**
-1.  **Initiate Quote:** The user navigates to the **Sales Hub** and clicks "New Quote".
-2.  **Dynamic Pricing Engine:** Upon selecting the customer and product, the system analyzes the customer's purchase history and current stock aging.
-3.  **Margin Simulation:** The AI suggests an optimal price. The user can adjust the price in the simulator to immediately see the predicted impact on margin percentage and total profit.
-4.  **Smart "Why":** The system explains the logic behind the suggested price (e.g., "Recommended 5% discount to clear aging inventory in Location A").
-5.  **Finalize Deal:** Once the "Goldilocks" price is found, the user generates the Quote and immediately converts it to a formal Invoice.
+### 3.2 Database Architecture
 
-**Outcome:** Replaces "Gut-Feel" gambling with data-driven pricing, shortens the decision cycle, and ensures maximum profit extraction from every deal.
+The database is highly relational, designed to support complex multi-location supply chain operations.
+
+*   **Identity & Access Management:**
+    *   `users`: Stores credentials and global `role`.
+    *   `location`: Defines physical warehouses or online channels.
+    *   `user_location`: A critical mapping table enforcing data visibility. A 'Warehouse' user only sees inventory for their assigned `location_id`.
+*   **Product & Inventory Model:**
+    *   `product`: Global catalog data (identified by `model_code`).
+    *   `product_loc`: The granular source of truth for inventory. It tracks `quantity_on_hand` for a specific `product_id` at a specific `location_id`.
+*   **Supply Chain & Procurement (Challenge 4 Focus):**
+    *   `vendor` & `product_vendor`: Stores supplier lead times and cost bases.
+    *   `product_order`: Manages the lifecycle of Purchase Requests (PRs) and Purchase Orders (POs), tracking `confirmation_status` from 'Pending' (needs approval) to 'Confirmed' (approved for order).
+*   **Sales & Financials (Challenge 9 Focus):**
+    *   `pricing`: Stores regional pricing tiers (e.g., West Malaysia vs. East Malaysia price).
+    *   `sale` & `sale_item`: Transactional records. Creating a sale deducts `quantity` from the respective `product_loc`.
+    *   `invoice`: Immutable billing records generated from confirmed sales.
+*   **AI Analytics:**
+    *   `forecast`: Caches the JSON string output of the Azure TimeGEN model alongside the `projected_demand` integer and the natural language `smart_why_rationale`.
+
+---
+
+## 4. Workflows & Data Flow
+
+### 4.1 Workflow 1: The Intelligent Procurement Agent (Challenge 4)
+*Goal: Move from manual Excel guessing to automated, AI-driven Purchase Requests.*
+
+1.  **User Request:** A Procurement officer navigates to the Forecast dashboard and selects a product (e.g., "Kettles") and location. The frontend calls `/api/forecast/data?product_id=X&location_id=Y`.
+2.  **Backend Cache Check:** `app.py` checks the `Forecast` table. If the data is missing or stale (older than 24 hours), it triggers the background thread (`azure_forecast.py`).
+3.  **AI Aggregation:** The backend aggregates historical `SaleItem` data, zero-filling empty weeks, and sends a DataFrame to Azure TimeGEN-1 via the Nixtla SDK.
+4.  **Presentation:** The frontend renders a `Recharts` ComposedChart showing historical actuals merging seamlessly into the AI prediction curve, accompanied by the "Smart Why Rationale" text.
+5.  **Automated PR Generation:** The user clicks "Generate Purchase Request". The frontend sends a POST request to `/api/orders/generate_pr` containing the calculated demand shortfall.
+6.  **Smart Approval:** The backend creates a `ProductOrder` with `confirmation_status='Pending'`. The assigned Manager receives an alert in their Workspace "Decision Cockpit", views the stock coverage context, and clicks "Approve", changing the status to 'Confirmed'.
+
+### 4.2 Workflow 2: AI Pricing Strategist (Challenge 9)
+*Goal: Recommend optimal pricing dynamically to maximize margin and sales velocity.*
+
+1.  **Initiate Quote:** A Sales Manager opens the "Sales Hub" (`SalesHub.jsx`) and selects "New Quote".
+2.  **Data Fetching:** The frontend pulls real-time `ProductLoc` data and base cost from `ProductVendor` via `/api/inventory` endpoints.
+3.  **Dynamic Recommendation:** The frontend/backend logic analyzes current `quantity_on_hand` against recent sales velocity. If stock is aging (high quantity, low recent sales), the engine suggests a discounted price.
+4.  **Margin Simulation:** The user types a prospective price into the UI. The frontend instantly calculates `(Price - Cost) * Quantity`, rendering a visual Badge indicating the predicted Profit Margin %.
+5.  **Execution:** The user accepts the "Goldilocks" price. They submit the form, which hits `POST /api/sales`. The backend creates the `Sale` and `SaleItem`, immediately deducting stock from `ProductLoc`, and automatically generates an `Invoice` record.
+
+---
+
+## 5. User Guide & End-to-End Walkthrough
+
+### 5.1 System Access
+1.  **Launch Application:** Access the deployment URL or `http://localhost:5173` for local development.
+2.  **Authentication:** The backend validates credentials against the `Users` table and sets a secure `flask_login` cookie. Session variables are passed to the frontend via `localStorage`.
+    *   *Default Procurement/Admin Account:* `admin@inventory.ai` / `admin123`
+    *   *Default Sales Account:* `sales@inventory.ai` / `sales123`
+
+### 5.2 Navigating the Application
+The Navigation Sidebar (`Layout.jsx`) conditionally renders based on the user's role:
+*   **Dashboard:** High-level executive summary of KPIs (Total Revenue, Active PRs).
+*   **Inventory List & Warehouse:** Granular view of `ProductLoc` stock levels.
+*   **Forecast (Challenge 4):** Access the AI Supply Chain Brain for demand prediction.
+*   **Sales Hub (Challenge 9):** Access the Quotation and Margin Simulation engine.
+*   **Orders & Suppliers:** View lifecycle of `ProductOrder` records and manage `Vendor` data.
+*   **Workspace:** Access Internal Mail, approve PRs, and view team hierarchies.
+
+### 5.3 End-to-End Demonstration
+
+**Phase 1: Procurement Optimization (Challenge 4)**
+1.  Log in as **Admin/Procurement**.
+2.  Click **Forecast** in the sidebar. Select a specific product to view its AI-predicted demand curve.
+3.  Note the predicted demand volume and the "Smart Why" text explaining the seasonal trend.
+4.  Click the **Generate PR** action button. Review the auto-calculated quantity needed to meet the AI's predicted demand. Submit the PR.
+5.  Navigate to **Workspace** -> **Approvals**. You will see the PR waiting in the "Decision Cockpit". Click **Approve**. The order status updates seamlessly in the **Orders** tab.
+
+**Phase 2: Maximizing Profit Margins (Challenge 9)**
+1.  Log out, and log back in as **Sales**.
+2.  Navigate to the **Sales Hub**. Click **New Quote**.
+3.  Select a Customer, Location, and the Product you just procured.
+4.  Observe the **AI Recommended Price**. Enter this price (or adjust it manually) into the unit price field.
+5.  Watch the **Margin Simulator** dynamically update the predicted profit percentage.
+6.  Click **Generate Quote/Sale**. The system records the transaction, updates the **Dashboard** revenue metrics in real-time, and generates an invoice, completing the cycle.
