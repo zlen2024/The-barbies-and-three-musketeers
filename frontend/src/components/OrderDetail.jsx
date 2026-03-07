@@ -132,7 +132,7 @@ const OrderDetail = () => {
                           <Text>Created on {order.created_at}</Text>
                           <div className="mt-2 flex items-center space-x-2">
                               <Badge color={getStatusColor(order.status)}>{order.status}</Badge>
-                              {(role === 'Manager' || role === 'Admin') && order.confirmation_status === 'Pending' && (
+                              {order.confirmation_status === 'Pending' && (
                                   <Badge color="yellow" icon={AlertCircle}>Draft / Pending Approval</Badge>
                               )}
                           </div>

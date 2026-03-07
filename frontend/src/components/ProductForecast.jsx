@@ -338,7 +338,14 @@ const ProductForecast = () => {
                                 </Card>
 
                                 <Card decoration="top" decorationColor="blue" className="bg-gray-900 border-gray-800 overflow-visible">
-                                    <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Volume (Last 7 Periods)</Text>
+                                    <div className="flex items-center justify-between group relative">
+                                        <Text className="text-gray-400 uppercase text-xs font-semibold mb-1 tracking-wider">Volume (Last 7 Periods)</Text>
+                                        <HelpCircle className="h-4 w-4 text-gray-500 cursor-pointer" />
+                                        <div className="absolute z-50 invisible group-hover:visible bg-gray-800 border border-gray-700 text-gray-200 text-xs rounded p-3 w-64 top-full mt-2 left-1/2 transform -translate-x-1/2 shadow-xl">
+                                            <p className="font-semibold mb-1">Volume Formula</p>
+                                            <p className="text-gray-400">Total Unit Sales over the last 7 periods</p>
+                                        </div>
+                                    </div>
                                     <Metric className="text-white font-bold">{renderValue(kpi.RollingSum7)}</Metric>
                                     <div className="mt-2 text-sm text-gray-500">Net Demand: {renderValue(kpi.NetDemand)}</div>
                                 </Card>
