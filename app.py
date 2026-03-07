@@ -35,6 +35,19 @@ db.init_app(app)
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
+# Initialize DB and conditionally seed if empty
+with app.app_context():
+    db.create_all()
+    # Check if the User table is empty, if so, seed the database
+    if not User.query.first():
+        logger.info("Database appears empty. Running seed_data...")
+        try:
+            from seed_data import seed_database
+            seed_database()
+        except Exception as e:
+            logger.error(f"Failed to seed database on startup: {e}")
+            traceback.print_exc()
+
 # Start the background forecast scheduler immediately upon app instantiation
 # so it runs under gunicorn as well.
 login_manager = LoginManager()
