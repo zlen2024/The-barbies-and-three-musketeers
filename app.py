@@ -521,20 +521,23 @@ def api_margin_simulator_forecast():
         weekly_df.reset_index(inplace=True)
 
         # Calculate weekly average price
-        # Prevent division by zero
-        weekly_df['price'] = weekly_df.apply(lambda row: row['subtotal'] / row['quantity'] if row['quantity'] > 0 else 0, axis=1)
+        # Prevent division by zero, use None for zero quantity to allow ffill/bfill
+        weekly_df['price'] = weekly_df.apply(lambda row: row['subtotal'] / row['quantity'] if row['quantity'] > 0 else None, axis=1)
+
+        # Forward fill and then backward fill missing prices so exogenous variable is continuous
+        weekly_df['price'] = weekly_df['price'].ffill().bfill()
 
         # Format for Nixtla TimeGEN
         sales_data = []
         for index, row in weekly_df.iterrows():
-            if row['quantity'] > 0: # Or include 0 if you want dense data
-                sales_data.append({
-                    'unique_id': unique_id,
-                    'timestamp': row['date'].strftime('%Y-%m-%d'),
-                    'value': row['subtotal'], # value is now subtotal for TimeGEN to forecast
-                    'price': row['price'],
-                    'quantity': row['quantity']
-                })
+            # Include all weeks (even 0 quantity) to maintain continuous frequency for TimeGEN
+            sales_data.append({
+                'unique_id': unique_id,
+                'timestamp': row['date'].strftime('%Y-%m-%d'),
+                'value': row['subtotal'], # value is now subtotal for TimeGEN to forecast
+                'price': row['price'] if pd.notna(row['price']) else float(proposed_price), # fallback if no history at all
+                'quantity': row['quantity']
+            })
 
         if not sales_data:
             return jsonify({'success': False, 'message': 'No weekly sales data available to run simulation.'}), 400
