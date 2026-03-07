@@ -1754,7 +1754,7 @@ def handle_generate_forecast_ws(data):
             emit('forecast_error', {'error': 'Failed to parse dates from historical data.'})
             return
 
-        horizon = max(int(len(df) * 0.3), 1)
+        horizon = max(90, int(len(df) * 0.3))
         freq_map = {
             'daily': 'D',
             'weekly': '7D',

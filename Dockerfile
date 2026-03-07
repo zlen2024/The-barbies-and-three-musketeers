@@ -39,4 +39,4 @@ ENV PORT=8080
 # Run command: Seed database and start gunicorn
 # Use 1 worker to prevent SQLite locking issues, and multiple threads for concurrency.
 # Add logging to stdout/stderr for Fly.io log capture.
-CMD ["sh", "-c", "python seed_data.py && gunicorn --workers=1 --threads=4 --timeout=120 --access-logfile - --error-logfile - --bind=0.0.0.0:8080 app:app"]
+CMD ["sh", "-c", "python seed_data.py && gunicorn --worker-class=geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 1 --timeout=120 --access-logfile - --error-logfile - --bind=0.0.0.0:8080 app:app"]
