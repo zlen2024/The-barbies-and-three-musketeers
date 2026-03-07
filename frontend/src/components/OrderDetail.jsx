@@ -25,6 +25,7 @@ import axios from 'axios';
 
 const OrderDetail = () => {
   const { orderId } = useParams();
+  const role = localStorage.getItem("userRole") || "Staff";
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
