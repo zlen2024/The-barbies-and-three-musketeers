@@ -3,7 +3,6 @@ import threading
 from datetime import datetime, timedelta
 import logging
 import pandas as pd
-from app import app
 from models import db, Product, SaleItem, Sale, ProductLoc
 from azure_forecast import trigger_forecast_generation
 from sqlalchemy import func
@@ -87,6 +86,7 @@ def get_historical_sales_data(product_id=None, days=140):
     return weekly_data
 
 def run_forecast_job():
+    from app import app
     logger.info("Running scheduled forecast job for all products and system-wide.")
     with app.app_context():
         try:

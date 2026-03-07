@@ -30,12 +30,13 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
+login_manager = LoginManager()
+login_manager.init_app(app)
+
 # Start the background forecast scheduler immediately upon app instantiation
 # so it runs under gunicorn as well.
 from scheduler import init_scheduler
 init_scheduler()
-login_manager = LoginManager()
-login_manager.init_app(app)
 
 @login_manager.user_loader
 def load_user(user_id):
