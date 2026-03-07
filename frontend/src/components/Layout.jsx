@@ -13,6 +13,7 @@ const Layout = ({ children, isFixed = false, isDark = false }) => {
     { name: 'Inventory', path: '/inventory', icon: Package },
     { name: 'Forecast', path: '/forecast', icon: LineChart },
     { name: 'Orders', path: '/orders', icon: ShoppingCart },
+    { name: 'Margin Simulator', path: '/margin-simulator', icon: DollarSign },
   ];
 
   if (role !== 'Sales') {

@@ -11,6 +11,7 @@ import OrderDetail from './components/OrderDetail';
 import Workspace from './components/Workspace';
 import Warehouse from './components/Warehouse';
 import SalesHub from './components/SalesHub';
+import MarginSimulator from './components/MarginSimulator';
 import { ToastContainer } from 'react-toastify';
 import './index.css';
 
@@ -36,6 +37,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/margin-simulator"
+          element={
+            <ProtectedRoute>
+              <MarginSimulator />
             </ProtectedRoute>
           }
         />

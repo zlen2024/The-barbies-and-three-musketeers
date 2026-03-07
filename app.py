@@ -457,6 +457,156 @@ def api_inventory_all():
 
     return jsonify(inventory_list)
 
+from azure_margin_simulator import generate_margin_simulation
+
+# API: Margin Simulator Forecast
+@app.route('/api/margin-simulator/forecast', methods=['POST'])
+@login_required
+def api_margin_simulator_forecast():
+    data = request.json
+    product_id = data.get('product_id')
+    proposed_price = data.get('proposed_price')
+    volume_discount = data.get('volume_discount', 0.0)
+
+    if not product_id or proposed_price is None:
+        return jsonify({'success': False, 'message': 'product_id and proposed_price are required'}), 400
+
+    final_price = float(proposed_price) * (1 - (float(volume_discount) / 100.0))
+
+    try:
+        # Get historical sales data aggregated by week
+        # We need: unique_id (model_code), timestamp (weekly start), value (quantity), price (avg unit_price)
+
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({'success': False, 'message': 'Product not found'}), 404
+
+        unique_id = product.model_code
+
+        # We fetch daily data first and group by week in pandas for convenience
+        sales_data_raw = db.session.query(
+            db.func.date(Sale.sale_date).label('date'),
+            db.func.sum(SaleItem.quantity).label('total_quantity'),
+            db.func.sum(SaleItem.subtotal).label('total_subtotal')
+        ) \
+        .join(SaleItem, SaleItem.sale_id == Sale.id) \
+        .join(ProductLoc, ProductLoc.id == SaleItem.pl_id) \
+        .filter(ProductLoc.product_id == product_id) \
+        .group_by(db.func.date(Sale.sale_date)).all()
+
+        import pandas as pd
+        if not sales_data_raw:
+            return jsonify({'success': False, 'message': 'No sales history available to run simulation.'}), 400
+
+        df = pd.DataFrame([{
+            'date': item.date,
+            'quantity': item.total_quantity,
+            'subtotal': item.total_subtotal
+        } for item in sales_data_raw])
+
+        df['date'] = pd.to_datetime(df['date'])
+
+        # Resample to weekly
+        df.set_index('date', inplace=True)
+        weekly_df = df.resample('W').sum()
+        weekly_df.reset_index(inplace=True)
+
+        # Calculate weekly average price
+        # Prevent division by zero
+        weekly_df['price'] = weekly_df.apply(lambda row: row['subtotal'] / row['quantity'] if row['quantity'] > 0 else 0, axis=1)
+
+        # Format for Nixtla TimeGEN
+        sales_data = []
+        for index, row in weekly_df.iterrows():
+            if row['quantity'] > 0: # Or include 0 if you want dense data
+                sales_data.append({
+                    'unique_id': unique_id,
+                    'timestamp': row['date'].strftime('%Y-%m-%d'),
+                    'value': row['subtotal'], # value is now subtotal for TimeGEN to forecast
+                    'price': row['price'],
+                    'quantity': row['quantity']
+                })
+
+        if not sales_data:
+            return jsonify({'success': False, 'message': 'No weekly sales data available to run simulation.'}), 400
+
+        # Add 0-filled weeks up to today to ensure we forecast from today forward
+        today = datetime.now()
+        last_date = pd.to_datetime(sales_data[-1]['timestamp'])
+
+        while last_date < today - pd.Timedelta(days=7):
+            last_date += pd.Timedelta(days=7)
+            sales_data.append({
+                'unique_id': unique_id,
+                'timestamp': last_date.strftime('%Y-%m-%d'),
+                'value': 0,
+                'price': sales_data[-1]['price'], # carry forward last known price
+                'quantity': 0
+            })
+
+        # Ensure we have at least a few data points
+        if len(sales_data) < 10:
+             logger.warning(f"Very few data points ({len(sales_data)}) for product_id={product_id}. The forecast might be inaccurate.")
+
+        # Call the simulation
+        simulation_result = generate_margin_simulation(product_id, sales_data, float(proposed_price), float(volume_discount))
+
+        if "error" in simulation_result:
+            return jsonify({'success': False, 'message': simulation_result["error"]}), 500
+
+        # Return the actuals (historical) alongside the forecast
+        actuals = [{
+            "date": d['timestamp'],
+            "subtotal": d['value'],
+            "price": d['price'],
+            "quantity": d['quantity']
+        } for d in sales_data]
+
+        return jsonify({
+            'success': True,
+            'actuals': actuals,
+            'forecast': simulation_result['forecast'],
+            'total_predicted_volume': simulation_result['total_volume'],
+            'proposed_price': final_price
+        })
+
+    except Exception as e:
+        logger.error(f"Error generating margin simulator forecast: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': 'Server error generating simulation.'}), 500
+
+from azure_margin_agent import generate_agentic_rationale
+
+# API: Margin Simulator Agentic Chat
+@app.route('/api/margin-simulator/chat', methods=['POST'])
+@login_required
+def api_margin_simulator_chat():
+    data = request.json
+    prompt = data.get('prompt')
+    image_base64 = data.get('image_base64')
+
+    if not prompt or not image_base64:
+        return jsonify({'success': False, 'message': 'prompt and image_base64 are required'}), 400
+
+    # Ensure it doesn't include the data:image/png;base64, prefix if it does
+    if image_base64.startswith('data:image'):
+        image_base64 = image_base64.split('base64,')[1]
+
+    try:
+        result = generate_agentic_rationale(prompt, image_base64)
+        if "error" in result:
+             return jsonify({'success': False, 'message': result["error"]}), 500
+
+        return jsonify({
+            'success': True,
+            'rationale': result['rationale']
+        })
+    except Exception as e:
+        logger.error(f"Error in margin simulator chat: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error generating rationale.'}), 500
+
+
 # API: Add Product
 @app.route('/api/products', methods=['POST'])
 @login_required
