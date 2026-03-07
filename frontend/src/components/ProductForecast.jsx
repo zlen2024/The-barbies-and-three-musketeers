@@ -4,6 +4,7 @@ import Layout from './Layout';
 import { Card, Title, Text, Button, Select, SelectItem, TextInput, Textarea, Metric, Callout } from "@tremor/react";
 import { Search, Loader2, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import {
   ComposedChart,
   Line,
@@ -42,6 +43,12 @@ const ProductForecast = () => {
       MA7: false,
       MA14: false
   });
+
+  // WebSocket Forecast State
+  const [wsLoading, setWsLoading] = useState(false);
+  const [wsStatus, setWsStatus] = useState('');
+  const [startIndex, setStartIndex] = useState(0);
+  const [endIndex, setEndIndex] = useState(undefined);
 
   const locationSearch = useLocation();
   const navigate = useNavigate();
@@ -99,6 +106,9 @@ const ProductForecast = () => {
       }
       const fetchData = async () => {
           setDataLoading(true);
+          // Clear forecast specific states when basic data loads
+          setWsLoading(false);
+          setWsStatus('');
           try {
               const res = await axios.get(`/api/forecast/data?location_id=${selectedLocation}&product_id=${selectedProduct}&interval=${timeInterval}`);
               // API now returns { chartData, kpi, alerts }
@@ -143,7 +153,61 @@ const ProductForecast = () => {
   };
 
   const handleProject = () => {
-      alert(`Projecting forecast using:\nSample Size: ${sampleSize} days\nProjection: ${projectionSize} month(s)\nPrompt: ${analysisPrompt}`);
+      if (!chartData || chartData.length === 0) return;
+
+      setWsLoading(true);
+      setWsStatus('Connecting...');
+
+      // Determine visible data based on brush (approximate by index range if available, or just send all chartData)
+      // Since recharts brush doesn't easily expose filtered data state upwards natively without onChange handlers,
+      // we'll send the data slice based on startIndex and endIndex.
+      const visibleData = chartData.slice(
+          Math.max(0, startIndex),
+          endIndex !== undefined ? endIndex + 1 : chartData.length
+      );
+
+      // Filter out any existing projected points so we only send historical actuals
+      const historicalData = visibleData.filter(d => d.volume !== undefined && d.volume !== null);
+
+      const newSocket = io(window.location.origin);
+
+      newSocket.on('connect', () => {
+          newSocket.emit('generate_forecast_ws', {
+              historical_data: historicalData,
+              interval: timeInterval
+          });
+      });
+
+      newSocket.on('forecast_progress', (data) => {
+          setWsStatus(data.status);
+      });
+
+      newSocket.on('forecast_complete', (data) => {
+          if (data.forecast) {
+              setChartData(prevData => {
+                  // Keep only historical data (remove old projections)
+                  const filteredHistorical = prevData.filter(d => d.volume !== undefined && d.volume !== null);
+                  return [...filteredHistorical, ...data.forecast];
+              });
+          }
+          setWsLoading(false);
+          setWsStatus('');
+          newSocket.disconnect();
+      });
+
+      newSocket.on('forecast_error', (data) => {
+          alert(`Forecast generation failed: ${data.error}`);
+          setWsLoading(false);
+          setWsStatus('');
+          newSocket.disconnect();
+      });
+  };
+
+  const handleBrushChange = (newBrush) => {
+      if (newBrush && newBrush.startIndex !== undefined) {
+          setStartIndex(newBrush.startIndex);
+          setEndIndex(newBrush.endIndex);
+      }
   };
 
   // Helper to render KPI value and handle nulls
@@ -410,7 +474,10 @@ const ProductForecast = () => {
                                         <Legend wrapperStyle={{ paddingTop: '20px' }}/>
 
                                         {/* Volume Bars */}
-                                        <Bar yAxisId="left" dataKey="volume" name={`${timeInterval.charAt(0).toUpperCase() + timeInterval.slice(1)} Sales`} fill="#3b82f6" opacity={0.3} barSize={20} />
+                                        <Bar yAxisId="left" dataKey="volume" name={`Actual Sales`} fill="#3b82f6" opacity={0.3} barSize={20} />
+
+                                        {/* Projected Volume Lines */}
+                                        <Line yAxisId="left" type="monotone" dataKey="projected_volume" name={`Projected Forecast`} stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" dot={true} activeDot={{ r: 6 }} />
 
                                         {/* MA Lines */}
                                         {visibleMAs.MA3 && <Line yAxisId="left" type="monotone" dataKey="MA3" stroke="#818cf8" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
@@ -424,6 +491,7 @@ const ProductForecast = () => {
                                             stroke="#475569"
                                             fill="#0f172a"
                                             travellerWidth={10}
+                                            onChange={handleBrushChange}
                                         />
                                     </ComposedChart>
                                 </ResponsiveContainer>
@@ -515,14 +583,20 @@ const ProductForecast = () => {
                                     </div>
                                 </div>
 
-                                <div className="mt-4 flex justify-end">
+                                <div className="mt-4 flex justify-end items-center">
+                                    {wsLoading && (
+                                        <div className="flex items-center text-sm text-indigo-400 mr-4">
+                                            <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                                            {wsStatus}
+                                        </div>
+                                    )}
                                     <Button
                                         color="indigo"
                                         onClick={handleProject}
-                                        disabled={!selectedProduct || dataLoading}
+                                        disabled={!selectedProduct || dataLoading || wsLoading}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-8"
                                     >
-                                        Project Forecast
+                                        {wsLoading ? 'Projecting...' : 'Project Forecast'}
                                     </Button>
                                 </div>
                             </div>

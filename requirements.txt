@@ -4,6 +4,10 @@ Flask-Login
 gunicorn
 nixtla
 pandas
+Flask-SocketIO
+eventlet
+gevent-websocket
+gevent
 openai
 azure-identity
 azure-core
