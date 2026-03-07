@@ -31,8 +31,6 @@ db.init_app(app)
 
 # Start the background forecast scheduler immediately upon app instantiation
 # so it runs under gunicorn as well.
-from scheduler import init_scheduler
-init_scheduler()
 login_manager = LoginManager()
 login_manager.init_app(app)
 
@@ -193,20 +191,26 @@ def api_dashboard():
 
     if system_forecast and system_forecast.forecast_data:
         try:
-            forecast_results = json.loads(system_forecast.forecast_data)
-            for f in forecast_results:
-                f_date = datetime.strptime(f['date'], "%Y-%m-%d")
-                chart_data.append({
-                    'date': f_date.strftime("%Y-%m-%d"),
-                    'Actual Sales': None,
-                    'AI Prediction': f['value']
-                })
-            forecast_unavailable = False
+            # Check if forecast is older than 24 hours
+            if system_forecast.last_updated and (datetime.utcnow() - system_forecast.last_updated).total_seconds() > 86400:
+                logger.warning("System-wide forecast data is older than 24 hours. Triggering background generation.")
+                forecast_unavailable = True
+            else:
+                forecast_results = json.loads(system_forecast.forecast_data)
+                for f in forecast_results:
+                    f_date = datetime.strptime(f['date'], "%Y-%m-%d")
+                    chart_data.append({
+                        'date': f_date.strftime("%Y-%m-%d"),
+                        'Actual Sales': None,
+                        'AI Prediction': f['value']
+                    })
+                forecast_unavailable = False
         except Exception as e:
             logger.error(f"Error parsing system forecast data: {e}")
 
     if forecast_unavailable:
-        logger.warning("System-wide forecast data not available. Triggering background generation.")
+        if not system_forecast or not system_forecast.forecast_data:
+            logger.warning("System-wide forecast data not available. Triggering background generation.")
         from azure_forecast import trigger_forecast_generation
         trigger_forecast_generation(current_app, None, historical_sales)
 
@@ -340,20 +344,25 @@ def _get_monthly_sales_trend(product_id):
 
     if product_forecast and product_forecast.forecast_data:
         try:
-            forecast_results = json.loads(product_forecast.forecast_data)
-            for f in forecast_results:
-                f_date = datetime.strptime(f['date'], "%Y-%m-%d")
-                sales_trend.append({
-                    'date': f_date.strftime("%Y-%m-%d"),
-                    'Actual Sales': None,
-                    'Forecast': f['value']
-                })
-            forecast_unavailable = False
+            if product_forecast.last_updated and (datetime.utcnow() - product_forecast.last_updated).total_seconds() > 86400:
+                logger.warning(f"Forecast data for product_id={product_id} is older than 24 hours. Triggering background generation.")
+                forecast_unavailable = True
+            else:
+                forecast_results = json.loads(product_forecast.forecast_data)
+                for f in forecast_results:
+                    f_date = datetime.strptime(f['date'], "%Y-%m-%d")
+                    sales_trend.append({
+                        'date': f_date.strftime("%Y-%m-%d"),
+                        'Actual Sales': None,
+                        'Forecast': f['value']
+                    })
+                forecast_unavailable = False
         except Exception as e:
             logger.error(f"Error parsing product forecast data for product_id={product_id}: {e}")
 
     if forecast_unavailable:
-        logger.warning(f"Forecast data not available for product_id={product_id}. Triggering background generation.")
+        if not product_forecast or not product_forecast.forecast_data:
+            logger.warning(f"Forecast data not available for product_id={product_id}. Triggering background generation.")
         from azure_forecast import trigger_forecast_generation
         trigger_forecast_generation(current_app, product_id, historical_sales)
 
@@ -1101,6 +1110,20 @@ def api_forecast_data():
     location_id = request.args.get('location_id')
     product_id = request.args.get('product_id')
     interval = request.args.get('interval', 'daily') # 'daily', 'weekly', 'biweekly', 'monthly'
+
+    # Ensure forecast data is fresh
+    if product_id and product_id != 'ALL':
+        try:
+            prod_id_int = int(product_id)
+            product_forecast = Forecast.query.filter_by(product_id=prod_id_int).first()
+            if not product_forecast or not product_forecast.forecast_data or (product_forecast.last_updated and (datetime.utcnow() - product_forecast.last_updated).total_seconds() > 86400):
+                logger.warning(f"Forecast data for product_id={product_id} is missing or older than 24 hours. Triggering background generation.")
+                from scheduler import get_historical_sales_data
+                from azure_forecast import trigger_forecast_generation
+                historical_sales = get_historical_sales_data(product_id=prod_id_int, days=140)
+                trigger_forecast_generation(current_app, prod_id_int, historical_sales)
+        except ValueError:
+            pass
 
     if not location_id or not product_id:
         return jsonify({'error': 'Location ID and Product ID are required'}), 400
