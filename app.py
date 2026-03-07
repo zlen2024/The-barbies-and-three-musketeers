@@ -30,10 +30,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-# Start the background forecast scheduler immediately upon app instantiation
-# so it runs under gunicorn as well.
-from scheduler import init_scheduler
-init_scheduler()
+# Background scheduler disabled to prevent OOM on startup.
+# Forecasting is now triggered on-demand.
 login_manager = LoginManager()
 login_manager.init_app(app)
 
@@ -191,8 +189,13 @@ def api_dashboard():
     # Check Azure Forecast from Database for System-wide (product_id = None)
     system_forecast = Forecast.query.filter_by(product_id=None).first()
     forecast_unavailable = True
+    forecast_needs_update = False
 
     if system_forecast and system_forecast.forecast_data:
+        # Check if the forecast is older than 24 hours
+        if not system_forecast.last_updated or (datetime.utcnow() - system_forecast.last_updated).total_seconds() > 86400:
+            forecast_needs_update = True
+
         try:
             forecast_results = json.loads(system_forecast.forecast_data)
             for f in forecast_results:
@@ -206,10 +209,10 @@ def api_dashboard():
         except Exception as e:
             logger.error(f"Error parsing system forecast data: {e}")
 
-    if forecast_unavailable:
-        logger.warning("System-wide forecast data not available. Triggering background generation.")
+    if forecast_unavailable or forecast_needs_update:
+        logger.warning("System-wide forecast data not available or outdated. Triggering background generation.")
         from azure_forecast import trigger_forecast_generation
-        trigger_forecast_generation(current_app, None, historical_sales)
+        trigger_forecast_generation(current_app._get_current_object(), None, historical_sales)
 
     # 4. Product Count
     product_count = Product.query.count()
@@ -338,8 +341,12 @@ def _get_monthly_sales_trend(product_id):
     # 2. Get forecast data from database
     product_forecast = Forecast.query.filter_by(product_id=product_id).first()
     forecast_unavailable = True
+    forecast_needs_update = False
 
     if product_forecast and product_forecast.forecast_data:
+        if not product_forecast.last_updated or (datetime.utcnow() - product_forecast.last_updated).total_seconds() > 86400:
+            forecast_needs_update = True
+
         try:
             forecast_results = json.loads(product_forecast.forecast_data)
             for f in forecast_results:
@@ -353,10 +360,10 @@ def _get_monthly_sales_trend(product_id):
         except Exception as e:
             logger.error(f"Error parsing product forecast data for product_id={product_id}: {e}")
 
-    if forecast_unavailable:
-        logger.warning(f"Forecast data not available for product_id={product_id}. Triggering background generation.")
+    if forecast_unavailable or forecast_needs_update:
+        logger.warning(f"Forecast data not available or outdated for product_id={product_id}. Triggering background generation.")
         from azure_forecast import trigger_forecast_generation
-        trigger_forecast_generation(current_app, product_id, historical_sales)
+        trigger_forecast_generation(current_app._get_current_object(), product_id, historical_sales)
 
     return sales_trend, forecast_unavailable
 
@@ -1156,9 +1163,9 @@ def api_forecast_data():
 
         # If no forecast exists at all, trigger background generation and wait? Or just let it run in background.
         # Let's let it run in background as before if it's just missing on normal page load.
-        elif not product_forecast:
+        elif not product_forecast or not product_forecast.last_updated or (datetime.utcnow() - product_forecast.last_updated).total_seconds() > 86400:
             trigger_forecast_generation(
-                app=current_app,
+                app=current_app._get_current_object(),
                 product_id=target_prod,
                 sales_data=bg_sales_data
             )
