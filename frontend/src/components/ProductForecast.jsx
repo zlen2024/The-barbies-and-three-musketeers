@@ -187,7 +187,39 @@ const ProductForecast = () => {
               setChartData(prevData => {
                   // Keep only historical data (remove old projections)
                   const filteredHistorical = prevData.filter(d => d.volume !== undefined && d.volume !== null);
-                  return [...filteredHistorical, ...data.forecast];
+                  const combinedData = [...filteredHistorical, ...data.forecast];
+
+                  // Calculate Moving Averages for the projected data
+                  const periods = [3, 7, 14];
+                  for (let i = filteredHistorical.length; i < combinedData.length; i++) {
+                      const currentItem = combinedData[i];
+
+                      periods.forEach(period => {
+                          if (i >= period - 1) {
+                              let sum = 0;
+                              let valid = true;
+                              for (let j = 0; j < period; j++) {
+                                  const dataPoint = combinedData[i - j];
+                                  const val = dataPoint.volume !== undefined && dataPoint.volume !== null
+                                      ? dataPoint.volume
+                                      : (dataPoint.projected_volume !== undefined && dataPoint.projected_volume !== null
+                                          ? dataPoint.projected_volume
+                                          : null);
+
+                                  if (val === null) {
+                                      valid = false;
+                                      break;
+                                  }
+                                  sum += val;
+                              }
+                              if (valid) {
+                                  currentItem[`MA${period}`] = Number((sum / period).toFixed(2));
+                              }
+                          }
+                      });
+                  }
+
+                  return combinedData;
               });
           }
           setWsLoading(false);
@@ -476,8 +508,8 @@ const ProductForecast = () => {
                                         {/* Volume Bars */}
                                         <Bar yAxisId="left" dataKey="volume" name={`Actual Sales`} fill="#3b82f6" opacity={0.3} barSize={20} />
 
-                                        {/* Projected Volume Lines */}
-                                        <Line yAxisId="left" type="monotone" dataKey="projected_volume" name={`Projected Forecast`} stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" dot={true} activeDot={{ r: 6 }} />
+                                        {/* Projected Volume Bars */}
+                                        <Bar yAxisId="left" dataKey="projected_volume" name={`Projected Forecast`} fill="#8b5cf6" opacity={0.6} barSize={20} />
 
                                         {/* MA Lines */}
                                         {visibleMAs.MA3 && <Line yAxisId="left" type="monotone" dataKey="MA3" stroke="#818cf8" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
