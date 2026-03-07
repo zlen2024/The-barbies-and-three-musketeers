@@ -135,8 +135,8 @@ const Dashboard = () => {
             />
         </Card>
 
-        {/* Intelligence & Simulation Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Intelligence Grid */}
+        <div className="grid grid-cols-1 gap-6">
 
             {/* Smart Why Rationale */}
             <Card>
@@ -155,44 +155,6 @@ const Dashboard = () => {
                 <Text className="mt-4">
                     The reasoning model analyzes market trends, seasonality, and competitor data to provide this explanation.
                 </Text>
-            </Card>
-
-            {/* Margin Simulator */}
-            <Card>
-                <Title className="mb-4">Margin Simulator</Title>
-                <Text>Test how price changes impact simulated profit per unit.</Text>
-
-                <div className="mt-6 space-y-4">
-                    <Flex>
-                        <Text>Target Margin</Text>
-                        <Text>{margin}%</Text>
-                    </Flex>
-                    <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={margin}
-                        onChange={(e) => setMargin(Number(e.target.value))}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    />
-
-                    <div className="bg-gray-50 p-4 rounded-md border border-gray-100 mt-4">
-                        <Flex className="mb-2">
-                            <Text>Base Cost</Text>
-                            <Text>{valueFormatter(basePrice)}</Text>
-                        </Flex>
-                        <Flex className="mb-2">
-                            <Text>Simulated Price</Text>
-                            <Text className="font-bold text-gray-900">{valueFormatter(basePrice * (1 + margin/100))}</Text>
-                        </Flex>
-                         <div className="border-t border-gray-200 my-2 pt-2">
-                            <Flex>
-                                <Text>Projected Profit / Unit</Text>
-                                <Metric className="text-emerald-600">{valueFormatter(basePrice * (margin/100))}</Metric>
-                            </Flex>
-                         </div>
-                    </div>
-                </div>
             </Card>
         </div>
 
