@@ -209,7 +209,7 @@ const MarginSimulator = () => {
                                     <input
                                         type="range"
                                         min="10"
-                                        max="500"
+                                        max={selectedProduct ? Math.max(500, selectedProduct.price * 2) : 500}
                                         step="1"
                                         value={proposedPrice}
                                         onChange={(e) => setProposedPrice(Number(e.target.value))}
