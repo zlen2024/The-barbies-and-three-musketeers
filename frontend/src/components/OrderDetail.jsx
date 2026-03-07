@@ -25,6 +25,7 @@ import axios from 'axios';
 
 const OrderDetail = () => {
   const { orderId } = useParams();
+  const role = localStorage.getItem("userRole") || "Staff";
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
@@ -44,6 +45,21 @@ const OrderDetail = () => {
   useEffect(() => {
     fetchOrderDetail();
   }, [orderId]);
+
+
+  const handleReceiveOrder = async () => {
+      if (!window.confirm("Are you sure you want to mark this order as received?")) return;
+      setConfirming(true);
+      try {
+          await axios.post(`/api/orders/${orderId}/receive`);
+          alert("Order received successfully!");
+          fetchOrderDetail();
+      } catch (e) {
+          alert("Error receiving order: " + (e.response?.data?.message || e.message));
+      } finally {
+          setConfirming(false);
+      }
+  };
 
   const handleConfirmOrder = async () => {
       if (!window.confirm("Are you sure you want to confirm this order? This will send the PO to the vendor.")) return;
@@ -123,7 +139,7 @@ const OrderDetail = () => {
                           </div>
                       </div>
                       <div className="mt-4 sm:mt-0">
-                          {order.confirmation_status === 'Pending' && (
+                          {(role === 'Manager' || role === 'Admin') && order.confirmation_status === 'Pending' && (
                               <Button
                                 size="lg"
                                 color="emerald"
@@ -134,6 +150,19 @@ const OrderDetail = () => {
                                   {confirming ? 'Confirming...' : 'Confirm Order'}
                               </Button>
                           )}
+
+                          {(role === 'Warehouse' || role === 'Admin') && order.status === 'Shipped' && (
+                              <Button
+                                size="lg"
+                                color="blue"
+                                icon={CheckCircle}
+                                onClick={handleReceiveOrder}
+                                disabled={confirming}
+                              >
+                                  {confirming ? 'Processing...' : 'Confirm Received'}
+                              </Button>
+                          )}
+
                       </div>
                   </div>
               </Card>

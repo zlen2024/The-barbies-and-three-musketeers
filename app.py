@@ -801,8 +801,48 @@ def api_order_detail(order_id):
     return jsonify(data)
 
 # API: Confirm Order
+
+@app.route('/api/orders/<int:order_id>/receive', methods=['POST'])
+@login_required
+@role_required('Warehouse', 'Admin')
+def api_receive_order(order_id):
+    order = ProductOrder.query.get(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+
+    if order.status == 'Received':
+         return jsonify({'success': False, 'message': 'Order already received'}), 400
+
+    if order.status != 'Shipped':
+         return jsonify({'success': False, 'message': 'Order must be Shipped before it can be received'}), 400
+
+    order.status = 'Received'
+
+    # Update inventory
+    pv = order.product_vendor
+    ul = UserLocation.query.get(order.ul_id)
+    location_id = ul.location_id
+
+    product_loc = ProductLoc.query.filter_by(product_id=pv.product_id, location_id=location_id).first()
+    if product_loc:
+        product_loc.quantity += order.order_qty
+        product_loc.last_updated = datetime.utcnow()
+    else:
+        product_loc = ProductLoc(product_id=pv.product_id, location_id=location_id, quantity=order.order_qty, reorder_point=0)
+        db.session.add(product_loc)
+
+    try:
+        db.session.commit()
+        logger.info(f"Order received successfully: ID {order_id} by user {current_user.username}")
+        return jsonify({'success': True, 'message': 'Order received successfully'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error receiving order {order_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/orders/<int:order_id>/confirm', methods=['POST'])
 @login_required
+@role_required('Manager', 'Admin')
 def api_confirm_order(order_id):
     order = ProductOrder.query.get(order_id)
     if not order:
@@ -1488,6 +1528,35 @@ def serve(path):
 
 
 # API: Get Workspace Team
+
+@app.route('/api/users', methods=['POST'])
+@login_required
+@role_required('Admin')
+def api_create_user():
+    data = request.json
+    username = data.get('username')
+    email = data.get('email')
+    password = data.get('password')
+    role = data.get('role')
+
+    if not all([username, email, password, role]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    if User.query.filter_by(username=username).first() or User.query.filter_by(email=email).first():
+        return jsonify({'error': 'User already exists'}), 400
+
+    hashed_password = generate_password_hash(password)
+    new_user = User(username=username, email=email, password=hashed_password, role=role)
+
+    try:
+        db.session.add(new_user)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'User created successfully', 'user_id': new_user.id})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating user: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/workspace/team', methods=['GET'])
 @login_required
 def api_workspace_team():
@@ -1495,7 +1564,12 @@ def api_workspace_team():
     user_locations = UserLocation.query.filter_by(uid=user.id).all()
     location_ids = [ul.location_id for ul in user_locations]
 
-    if user.role == 'Manager':
+    if user.role in ['Manager', 'Admin']:
+        if user.role == 'Admin':
+            # Admin gets all users grouped by all locations
+            locations = Location.query.all()
+            location_ids = [l.id for l in locations]
+
         # Manager gets all members from all assigned locations, grouped by location
         team_data = []
         for loc_id in location_ids:
