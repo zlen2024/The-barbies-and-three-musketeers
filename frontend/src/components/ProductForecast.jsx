@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import { Card, Title, Text, Button, Select, SelectItem, TextInput, Textarea, Metric, Callout } from "@tremor/react";
-import { Search, Loader2, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { Search, Loader2, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, CheckCircle, Info, UploadCloud, FileText, Send } from 'lucide-react';
+import { Dialog, Transition } from '@headlessui/react';
+import ReactMarkdown from 'react-markdown';
 import axios from 'axios';
 import {
   ComposedChart,
