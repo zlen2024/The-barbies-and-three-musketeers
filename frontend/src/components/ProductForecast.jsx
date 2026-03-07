@@ -172,6 +172,11 @@ const ProductForecast = () => {
       const newSocket = io(window.location.origin);
 
       newSocket.on('connect', () => {
+          console.log('[DEBUG WebSocket] Connected. Emitting generate_forecast_ws payload:', {
+              historical_data_length: historicalData.length,
+              interval: timeInterval,
+              historical_data_sample: historicalData.slice(0, 5)
+          });
           newSocket.emit('generate_forecast_ws', {
               historical_data: historicalData,
               interval: timeInterval
@@ -509,7 +514,7 @@ const ProductForecast = () => {
                                         <Bar yAxisId="left" dataKey="volume" name={`Actual Sales`} fill="#3b82f6" opacity={0.3} barSize={20} />
 
                                         {/* Projected Volume Bars */}
-                                        <Bar yAxisId="left" dataKey="projected_volume" name={`Projected Forecast`} fill="#8b5cf6" opacity={0.6} barSize={20} />
+                                        <Bar yAxisId="left" dataKey="projected_volume" name={`Projected Forecast`} fill="#a855f7" opacity={0.6} barSize={20} />
 
                                         {/* MA Lines */}
                                         {visibleMAs.MA3 && <Line yAxisId="left" type="monotone" dataKey="MA3" stroke="#818cf8" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}

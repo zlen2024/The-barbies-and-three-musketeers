@@ -1754,7 +1754,7 @@ def handle_generate_forecast_ws(data):
             emit('forecast_error', {'error': 'Failed to parse dates from historical data.'})
             return
 
-        horizon = max(90, int(len(df) * 0.3))
+        horizon = max(1, int(len(df) / 3))
         freq_map = {
             'daily': 'D',
             'weekly': '7D',
@@ -1776,6 +1776,10 @@ def handle_generate_forecast_ws(data):
         )
 
         emit('forecast_progress', {'status': 'Generating multi-horizon predictions...', 'progress': 70})
+
+        print(f"[DEBUG WebSocket] Requesting TimeGEN-1 Forecast with horizon: {horizon}, df length: {len(df)}")
+        print(f"[DEBUG WebSocket] DataFrame head:\n{df.head()}")
+        print(f"[DEBUG WebSocket] DataFrame tail:\n{df.tail()}")
 
         # Generate forecast
         timegen_fcst_df = client.forecast(
