@@ -36,7 +36,7 @@ EXPOSE 8080
 ENV FLASK_APP=app.py
 ENV PORT=8080
 
-# Run command: Seed database and start gunicorn
+# Run command: Start gunicorn
 # Use 1 worker to prevent SQLite locking issues, and multiple threads for concurrency.
 # Add logging to stdout/stderr for Fly.io log capture.
-CMD ["sh", "-c", "python seed_data.py && gunicorn --worker-class=geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 1 --timeout=120 --access-logfile - --error-logfile - --bind=0.0.0.0:8080 app:app"]
+CMD ["sh", "-c", "gunicorn --worker-class=geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 1 --timeout=120 --access-logfile - --error-logfile - --bind=0.0.0.0:8080 app:app"]
