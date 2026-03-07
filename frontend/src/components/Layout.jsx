@@ -42,9 +42,9 @@ const Layout = ({ children, isFixed = false, isDark = false }) => {
   }
 
   return (
-    <div className={`flex flex-col ${isDark ? 'bg-gray-900 text-gray-100' : 'bg-slate-50'} ${isFixed ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+    <div className={`flex flex-col h-screen ${isDark ? 'bg-gray-900 text-gray-100' : 'bg-slate-50'}`}>
       {/* Header */}
-      <header className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b sticky top-0 z-50 flex-none`}>
+      <header className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b flex-none z-50`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
@@ -133,12 +133,12 @@ const Layout = ({ children, isFixed = false, isDark = false }) => {
       </header>
 
       {/* Main Content */}
-      <main className={`flex-1 w-full ${!isFixed ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8' : ''} ${isFixed ? 'overflow-hidden' : ''}`}>
+      <main className={`flex-grow w-full flex flex-col min-h-0 ${!isFixed ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 overflow-y-auto' : ''}`}>
         {children}
       </main>
 
       {/* Footer */}
-      <footer className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-t mt-auto flex-none`}>
+      <footer className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-t flex-shrink-0`}>
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <p className={`text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             &copy; {new Date().getFullYear()} InventoryAI. All rights reserved.
