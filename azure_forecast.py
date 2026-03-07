@@ -9,7 +9,7 @@ from models import db, Forecast
 
 logger = logging.getLogger(__name__)
 
-def generate_forecast_background(app, product_id, sales_data, projection_size=9, sample_size=None):
+def generate_forecast_background(app, product_id, sales_data, projection_size=9, sample_size=None, interval='weekly'):
     """
     Run forecast generation in background using the Nixtla SDK.
     `sales_data` should be a list of dicts: [{'timestamp': 'YYYY-MM-01', 'value': 123.4}, ...]
@@ -50,10 +50,20 @@ def generate_forecast_background(app, product_id, sales_data, projection_size=9,
 
             # Generate forecast
             h_val = int(projection_size) if projection_size else 9
+
+            # Map frontend interval to TimeGEN frequency
+            freq_map = {
+                'daily': 'D',
+                'weekly': 'W',     # Or '7D' depending on exact Nixtla requirements, 'W' is standard
+                'biweekly': '2W',
+                'monthly': 'MS'    # Month start
+            }
+            freq_val = freq_map.get(interval, 'W')
+
             timegen_fcst_df = client.forecast(
                 df=df,
                 h=h_val,
-                freq='7D',
+                freq=freq_val,
                 time_col='timestamp',
                 target_col='value'
             )
@@ -108,7 +118,7 @@ def generate_forecast_background(app, product_id, sales_data, projection_size=9,
 _generating_forecasts = set()
 _generating_lock = threading.Lock()
 
-def trigger_forecast_generation(app, product_id, sales_data, projection_size=9, sample_size=None):
+def trigger_forecast_generation(app, product_id, sales_data, projection_size=9, sample_size=None, interval='weekly'):
     """
     Triggers the forecast generation in a background thread.
     """
@@ -127,7 +137,7 @@ def trigger_forecast_generation(app, product_id, sales_data, projection_size=9, 
 
     def wrapper():
         try:
-            generate_forecast_background(app_obj, product_id, sales_data, projection_size, sample_size)
+            generate_forecast_background(app_obj, product_id, sales_data, projection_size, sample_size, interval)
         finally:
             with _generating_lock:
                 _generating_forecasts.discard(product_id)

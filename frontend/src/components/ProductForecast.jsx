@@ -45,6 +45,9 @@ const ProductForecast = () => {
       MA14: false
   });
 
+  // Polling State
+  const [isPolling, setIsPolling] = useState(false);
+
   // AI Analysis State
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState(null);
@@ -113,11 +116,18 @@ const ProductForecast = () => {
               if (sampleSize) url += `&sample_size=${sampleSize}`;
               if (projectionSize) url += `&projection_size=${projectionSize}`;
               const res = await axios.get(url);
-              // API now returns { chartData, kpi, alerts }
+              // API now returns { chartData, kpi, alerts, forecast_unavailable }
               if (res.data.chartData) {
                   setChartData(res.data.chartData);
                   setKpi(res.data.kpi || {});
                   setAlerts(res.data.alerts || []);
+
+                  // Check if we need to poll
+                  if (res.data.forecast_unavailable) {
+                      setIsPolling(true);
+                  } else {
+                      setIsPolling(false);
+                  }
               } else if (Array.isArray(res.data)) {
                   // Fallback if old format returns
                   setChartData(res.data);
@@ -139,6 +149,39 @@ const ProductForecast = () => {
       };
       fetchData();
   }, [selectedLocation, selectedProduct, timeInterval, navigate]);
+
+  // Polling Effect
+  useEffect(() => {
+      let intervalId;
+      if (isPolling) {
+          intervalId = setInterval(async () => {
+              if (!selectedLocation || !selectedProduct) return;
+
+              try {
+                  let url = `/api/forecast/data?location_id=${selectedLocation}&product_id=${selectedProduct}&interval=${timeInterval}`;
+                  if (sampleSize) url += `&sample_size=${sampleSize}`;
+                  if (projectionSize) url += `&projection_size=${projectionSize}`;
+
+                  const res = await axios.get(url);
+                  if (res.data && res.data.chartData) {
+                      setChartData(res.data.chartData);
+                      setKpi(res.data.kpi || {});
+                      setAlerts(res.data.alerts || []);
+
+                      if (!res.data.forecast_unavailable) {
+                          setIsPolling(false);
+                      }
+                  }
+              } catch (err) {
+                  console.error("Polling error:", err);
+              }
+          }, 5000); // Poll every 5 seconds
+      }
+
+      return () => {
+          if (intervalId) clearInterval(intervalId);
+      };
+  }, [isPolling, selectedLocation, selectedProduct, timeInterval, sampleSize, projectionSize]);
 
   const filteredLocations = locations.filter(loc =>
       (loc.description || '').toLowerCase().includes(locationSearchTerm.toLowerCase()) ||
@@ -336,7 +379,7 @@ const ProductForecast = () => {
                 </div>
             </div>
 
-            <div className="p-6 flex flex-col min-h-0 space-y-6 flex-1">
+            <div className="p-6 flex flex-col min-h-0 space-y-6 flex-1 pb-24">
                 {dataLoading ? (
                     <div className="flex-1 flex items-center justify-center">
                         <Loader2 className="animate-spin text-indigo-500 h-8 w-8" />
@@ -379,7 +422,7 @@ const ProductForecast = () => {
                         {/* Chart Area */}
                         <Card className="bg-gray-900 border-gray-800 shrink-0 h-[500px] flex flex-col">
                             <div className="flex justify-between items-center mb-4 flex-none">
-                                <Title className="text-gray-200">Sales Volume & Moving Averages</Title>
+                                <Title className="text-gray-200">Sales Volume & Moving Averages {isPolling && <span className="text-xs text-indigo-400 font-normal ml-2 animate-pulse"><Loader2 className="w-3 h-3 inline mr-1 animate-spin" /> Generating AI Forecast...</span>}</Title>
                                 <div className="flex space-x-2">
                                     <button
                                         onClick={() => toggleMA('MA3')}
@@ -546,6 +589,11 @@ const ProductForecast = () => {
                                                         setChartData(res.data.chartData);
                                                         setKpi(res.data.kpi || {});
                                                         setAlerts(res.data.alerts || []);
+                                                        if (res.data.forecast_unavailable) {
+                                                            setIsPolling(true);
+                                                        } else {
+                                                            setIsPolling(false);
+                                                        }
                                                     }
                                                 }).catch(err => {
                                                     console.error(err);
@@ -618,7 +666,7 @@ const ProductForecast = () => {
                                     <Button
                                         color="emerald"
                                         onClick={handleGenerateReport}
-                                        disabled={!selectedProduct || dataLoading || analyzing || !screenshotPreview}
+                                        disabled={!selectedProduct || dataLoading || analyzing}
                                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-8"
                                     >
                                         {analyzing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> Generating...</> : "Generate Report Analysis"}

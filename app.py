@@ -1143,8 +1143,28 @@ def api_forecast_data():
         from azure_forecast import trigger_forecast_generation, generate_forecast_background
         product_forecast = Forecast.query.filter_by(product_id=target_prod).first()
 
-        # Create a simple sales_data format for generation
-        bg_sales_data = [{"timestamp": day["date"].strftime("%Y-%m-%d"), "value": day["raw_val"]} for day in daily_sales_raw]
+        # Create a simple sales_data format for generation based on aggregated data
+        bg_sales_data = []
+        for item in aggregated_data:
+            # We need to extract a single date for the timestamp
+            # If interval is daily or monthly, label is already close or can be mapped
+            # If weekly or biweekly, label is "YYYY-MM-DD to YYYY-MM-DD"
+            label = item['label']
+            if ' to ' in label:
+                timestamp = label.split(' to ')[1] # Use the end date of the period
+            elif interval == 'monthly':
+                # Convert "Jan 2024" to "2024-01-01"
+                try:
+                    dt = datetime.strptime(label, "%b %Y")
+                    # For TimeGEN monthly freq, often expects start of month or end of month, start is fine
+                    timestamp = dt.strftime("%Y-%m-01")
+                except:
+                    timestamp = label
+            else:
+                timestamp = label # daily is already "YYYY-MM-DD"
+
+            bg_sales_data.append({"timestamp": timestamp, "value": item['raw_val']})
+
 
         # If the user explicitly provided projection parameters, generate the forecast synchronously
         # so the new data is returned immediately to the frontend.
@@ -1155,7 +1175,8 @@ def api_forecast_data():
                 product_id=target_prod,
                 sales_data=bg_sales_data,
                 projection_size=projection_size,
-                sample_size=sample_size
+                sample_size=sample_size,
+                interval=interval
             )
             # Fetch the newly generated forecast from DB
             db.session.expire_all() # Ensure we get fresh data
@@ -1167,7 +1188,8 @@ def api_forecast_data():
             trigger_forecast_generation(
                 app=current_app._get_current_object(),
                 product_id=target_prod,
-                sales_data=bg_sales_data
+                sales_data=bg_sales_data,
+                interval=interval
             )
 
         if product_forecast and product_forecast.forecast_data:
@@ -1317,7 +1339,8 @@ def api_forecast_data():
     return jsonify({
         "chartData": chart_data,
         "kpi": kpi,
-        "alerts": alerts
+        "alerts": alerts,
+        "forecast_unavailable": forecast_unavailable
     })
 
 # API: Sales Endpoints
