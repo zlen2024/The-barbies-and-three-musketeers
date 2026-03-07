@@ -1100,7 +1100,8 @@ def api_forecast_products():
         'sku_id': prod.model_code,
         'product_name': prod.product_name,
         'category': prod.category,
-        'brand': prod.brand
+        'brand': prod.brand,
+        'price': prod.pricing[0].lsp_price if prod.pricing else 0
     } for prod in products]
 
     return jsonify(product_list)
