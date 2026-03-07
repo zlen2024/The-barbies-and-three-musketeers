@@ -344,7 +344,7 @@ const ProductForecast = () => {
         </div>
 
         {/* Main Content Area - Charts and Controls */}
-        <div className="flex-1 bg-gray-950 flex flex-col overflow-y-auto relative">
+        <div className="pb-24 flex-1 bg-gray-950 flex flex-col overflow-y-auto relative">
 
             {/* Header / Info Bar */}
             <div className="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6 flex-none">
