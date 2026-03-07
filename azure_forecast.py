@@ -2,6 +2,8 @@ import os
 import json
 import logging
 import threading
+import time
+
 from datetime import datetime, timedelta
 import pandas as pd
 
@@ -42,14 +44,42 @@ def generate_forecast_background(app, product_id, sales_data):
             # Sort by timestamp
             df = df.sort_values(by='timestamp')
 
-            # Generate forecast for the next 9 weeks
-            timegen_fcst_df = client.forecast(
-                df=df,
-                h=9,
-                freq='7D',
-                time_col='timestamp',
-                target_col='value'
-            )
+
+            # Generate forecast for the next 9 weeks with retry logic
+            max_retries = 3
+            base_delay = 2
+            timegen_fcst_df = None
+
+            for attempt in range(max_retries):
+                try:
+                    timegen_fcst_df = client.forecast(
+                        df=df,
+                        h=9,
+                        freq='7D',
+                        time_col='timestamp',
+                        target_col='value'
+                    )
+                    break # Success
+                except Exception as e:
+                    error_msg = str(e)
+                    # Check for orjson decode error (usually means HTML error page from 503)
+                    if "JSONDecodeError" in error_msg or "orjson" in error_msg:
+                        logger.warning(f"Attempt {attempt + 1} failed: Failed to parse API response as JSON (likely 503 error).")
+                    else:
+                        logger.warning(f"Attempt {attempt + 1} failed with error: {error_msg}")
+
+                    if attempt < max_retries - 1:
+                        sleep_time = base_delay * (2 ** attempt)
+                        logger.info(f"Retrying in {sleep_time} seconds...")
+                        time.sleep(sleep_time)
+                    else:
+                        logger.error(f"All {max_retries} attempts to call TimeGEN API failed.")
+                        return
+
+            if timegen_fcst_df is None:
+                logger.error("Forecast dataframe is None after all retries.")
+                return
+
 
             # Process the result
             forecast_results = []
