@@ -35,7 +35,11 @@ const MarginSimulator = () => {
                 const response = await axios.get('/api/forecast/products?location_id=ALL');
                 setProducts(response.data);
                 if (response.data.length > 0) {
-                    setSelectedProduct(response.data[0]);
+                    const firstProduct = response.data[0];
+                    setSelectedProduct(firstProduct);
+                    if (firstProduct.price) {
+                        setProposedPrice(firstProduct.price);
+                    }
                 }
             } catch (err) {
                 console.error("Error fetching products", err);
@@ -72,10 +76,10 @@ const MarginSimulator = () => {
                     date: a.date,
                     'Historical Quantity': a.quantity,
                     'Historical Price': a.price,
-                    'Historical Subtotal': a.subtotal,
+                    'Historical Subtotal (k)': a.subtotal / 1000,
                     'Forecasted Quantity': null,
                     'Forecasted Price': null,
-                    'Forecasted Subtotal': null
+                    'Forecasted Subtotal (k)': null
                 });
             });
 
@@ -84,7 +88,7 @@ const MarginSimulator = () => {
                  const lastActual = recentActuals[recentActuals.length - 1];
                  chartData[chartData.length - 1]['Forecasted Quantity'] = lastActual.quantity;
                  chartData[chartData.length - 1]['Forecasted Price'] = lastActual.price;
-                 chartData[chartData.length - 1]['Forecasted Subtotal'] = lastActual.subtotal;
+                 chartData[chartData.length - 1]['Forecasted Subtotal (k)'] = lastActual.subtotal / 1000;
             }
 
             // Add forecasts
@@ -93,10 +97,10 @@ const MarginSimulator = () => {
                     date: f.date,
                     'Historical Quantity': null,
                     'Historical Price': null,
-                    'Historical Subtotal': null,
+                    'Historical Subtotal (k)': null,
                     'Forecasted Quantity': f.quantity,
                     'Forecasted Price': f.price,
-                    'Forecasted Subtotal': f.subtotal
+                    'Forecasted Subtotal (k)': f.subtotal / 1000
                 });
             });
 
@@ -159,7 +163,14 @@ const MarginSimulator = () => {
                             {products.map(product => (
                                 <div
                                     key={product.id}
-                                    onClick={() => setSelectedProduct(product)}
+                                    onClick={() => {
+                                        setSelectedProduct(product);
+                                        setSimulationData(null);
+                                        setChatResponse('');
+                                        setChatPrompt('');
+                                        setProposedPrice(product.price || 100);
+                                        setVolumeDiscount(0);
+                                    }}
                                     className={`p-3 rounded-lg cursor-pointer border transition-colors ${selectedProduct?.id === product.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'}`}
                                 >
                                     <div className="font-medium text-gray-900">{product.product_name}</div>
@@ -188,6 +199,10 @@ const MarginSimulator = () => {
                             <div className="space-y-6">
                                 <div>
                                     <Flex className="mb-2">
+                                        <Text>Current Price</Text>
+                                        <Text className="font-bold text-gray-500">{selectedProduct ? valueFormatter(selectedProduct.price) : '-'}</Text>
+                                    </Flex>
+                                    <Flex className="mb-2 mt-4">
                                         <Text>Proposed Price</Text>
                                         <Text className="font-bold">{valueFormatter(proposedPrice)}</Text>
                                     </Flex>
@@ -273,7 +288,7 @@ const MarginSimulator = () => {
                                     data={simulationData.chartData}
                                     index="date"
                                     categories={[
-                                        "Historical Subtotal", "Forecasted Subtotal",
+                                        "Historical Subtotal (k)", "Forecasted Subtotal (k)",
                                         "Historical Quantity", "Forecasted Quantity",
                                         "Historical Price", "Forecasted Price"
                                     ]}
