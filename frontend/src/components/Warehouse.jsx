@@ -174,21 +174,11 @@ const Warehouse = () => {
             <Col numColSpan={1} numColSpanLg={2}>
               <Card
                 className="h-full cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => navigate(`/forecast?location=${locationId}&sku=${productId}`)}
+                onClick={() => navigate(`/forecast?location=${locationId}&product=${productId}`)}
               >
                 <div className="flex justify-between items-center">
                   <Title>Sales History (Last 30 Days) - {location.loc_code}</Title>
-                  <Button
-                      size="xs"
-                      variant="light"
-                      icon={ArrowRight}
-                      onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/forecast?location=${locationId}&sku=${productId}`);
-                      }}
-                  >
-                      Go to Forecast
-                  </Button>
+                  <Text className="text-xs text-indigo-600 flex items-center">Click for Analysis <ArrowRight className="h-3 w-3 ml-1"/></Text>
                 </div>
                 <div className="mt-4 h-72">
                   <AreaChart

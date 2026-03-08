@@ -13,11 +13,11 @@ const Layout = ({ children, isFixed = false, isDark = false }) => {
     { name: 'Inventory', path: '/inventory', icon: Package },
     { name: 'Forecast', path: '/forecast', icon: LineChart },
     { name: 'Orders', path: '/orders', icon: ShoppingCart },
+    { name: 'Margin Simulator', path: '/margin-simulator', icon: DollarSign },
   ];
 
   if (role !== 'Sales') {
-    // Insert Suppliers before Orders
-    baseNavItems.splice(3, 0, { name: 'Suppliers', path: '/suppliers', icon: Truck });
+      baseNavItems.push({ name: 'Suppliers', path: '/suppliers', icon: Truck });
   }
 
   if (role === 'Sales') {
