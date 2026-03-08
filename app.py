@@ -14,6 +14,14 @@ from flask_socketio import SocketIO, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, SaleItem, Forecast, UserLocation, Invoice
 
+import json
+from dotenv import load_dotenv
+
+from azure.identity import DefaultAzureCredential
+from azure.ai.projects import AIProjectClient
+
+load_dotenv()
+
 
 # Configure Logging
 logging.basicConfig(
@@ -2245,6 +2253,67 @@ def api_warehouse_product_stats():
         traceback.print_exc()
         return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
+
+
+@socketio.on('copilot_chat')
+def handle_copilot_chat_ws(data):
+    try:
+        if not current_user.is_authenticated:
+            emit('copilot_error', {'error': 'Unauthorized'})
+            return
+
+        message = data.get('message', '')
+        sku = data.get('sku', '')
+
+        if not message:
+            emit('copilot_error', {'error': 'No message provided.'})
+            return
+
+        emit('copilot_progress', {'status': 'Connecting to Azure AI Project...'})
+
+        myEndpoint = os.environ.get("AZURE_EXISTING_AIPROJECT_ENDPOINT", "https://barbieai.services.ai.azure.com/api/projects/proj-Barbie")
+
+        project_client = AIProjectClient(
+            endpoint=myEndpoint,
+            credential=DefaultAzureCredential(),
+        )
+
+        myAgent = "fundementalag"
+        myVersion = "4"
+
+        agent_id_env = os.environ.get("AZURE_EXISTING_AGENT_ID")
+        if agent_id_env and ":" in agent_id_env:
+            agent_parts = agent_id_env.split(":")
+            myAgent = agent_parts[0]
+            myVersion = agent_parts[1]
+
+        openai_client = project_client.get_openai_client()
+
+        context_prompt = f"System Context: The user is currently looking at product SKU: {sku}. Please formulate your response to help with this product. The output must strictly follow the JSON schema provided to you."
+
+        emit('copilot_progress', {'status': 'Thinking...'})
+
+        response = openai_client.responses.create(
+            input=[
+                {"role": "system", "content": context_prompt},
+                {"role": "user", "content": message}
+            ],
+            extra_body={"agent": {"name": myAgent, "version": myVersion, "type": "agent_reference"}},
+        )
+
+        output_text = response.output_text
+        print(f"Agent Response: {output_text}")
+
+        try:
+            parsed_response = json.loads(output_text)
+            emit('copilot_response', parsed_response)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse Agent JSON response: {e}, text: {output_text}")
+            emit('copilot_error', {'error': 'Failed to parse JSON from AI Agent.'})
+
+    except Exception as e:
+        logger.error(f"WebSocket Copilot Error: {str(e)}\n{traceback.format_exc()}")
+        emit('copilot_error', {'error': f"Server error: {str(e)}"})
 
 
 if __name__ == '__main__':
