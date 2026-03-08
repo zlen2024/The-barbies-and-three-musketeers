@@ -544,3 +544,154 @@ The application implements Role-Based Access Control (RBAC) via the `@role_requi
 - **Event**: `copilot_chat` (Client to Server)
 - **Payload**: `{"message": "I need 50 units of SKU-123", "sku": "SKU-123"}`
 - **Server Emits**: `copilot_progress` (Updates), `copilot_response` (Parsed JSON Agent response), `copilot_error` (Failure).
+
+## User Guide & Testing Scenarios
+
+This section provides practical workflows based on the standardized test data seeded by `seed_data.py`. Use these accounts and request payloads to verify endpoint behavior in a local or staging environment.
+
+### Test Accounts
+
+All seeded accounts share the same default password: `password`.
+
+| Role      | Username         | Email                                 | Example Assigned Locations                     |
+| :-------- | :--------------- | :------------------------------------ | :--------------------------------------------- |
+| Admin     | `testadmin`      | `testadmin@chinhinforcast.com`        | System-wide access                             |
+| Manager   | `testmanager`    | `testmanager@chinhinforcast.com`      | System-wide access                             |
+| Warehouse | `testwarehouse`  | `testwarehouse@chinhinforcast.com`    | test-WH-MAIN, test-WH-REWORK                 |
+| Warehouse | `testwarehouse2` | `testwarehouse2@chinhinforcast.com`   | test-WH-MAIN, test-WH-REWORK                 |
+| Sales     | `testsales`      | `testsales@chinhinforcast.com`        | test-CH-LAZADA, test-CH-SHOPEE               |
+| Sales     | `testsales2`     | `testsales2@chinhinforcast.com`       | test-CH-TIKTOK, test-CH-ESTORE               |
+
+---
+
+### Common Workflows
+
+#### Scenario 1: Authentication & Dashboard (Admin/Manager)
+**Objective**: Log in as a Manager and view the system-wide dashboard.
+
+1. **Login**
+   ```http
+   POST /api/login
+   ```
+   ```json
+   {
+     "email": "testmanager@chinhinforcast.com",
+     "password": "password"
+   }
+   ```
+2. **Fetch Dashboard KPI Data**
+   *(Ensure session cookie is included)*
+   ```http
+   GET /api/dashboard
+   ```
+
+#### Scenario 2: Warehouse Generating a Purchase Request (PR)
+**Objective**: A Warehouse user notices low stock for "test Granite Sink Platz 450" (SKU: `test-HT-PLATZ-450-H`) and requests more stock from "test GlobalPort Logistics".
+
+1. **Login as Warehouse**
+   ```http
+   POST /api/login
+   ```
+   ```json
+   {
+     "email": "testwarehouse@chinhinforcast.com",
+     "password": "password"
+   }
+   ```
+2. **Generate Purchase Request**
+   *(Assuming `test-HT-PLATZ-450-H` maps to the first product, `vendor_id=1` is GlobalPort, and `ul_id=1` maps to the user's assignment at `test-WH-MAIN`)*
+   ```http
+   POST /api/generate-pr
+   ```
+   ```json
+   {
+     "sku_id": "test-HT-PLATZ-450-H",
+     "quantity": 100,
+     "vendor_id": 1,
+     "ul_id": 1
+   }
+   ```
+
+#### Scenario 3: Manager Approving an Order & Warehouse Receiving It
+**Objective**: A Manager confirms the pending PR (converting it to an Order), and later the Warehouse user receives the physical goods.
+
+1. **Manager Confirmation**
+   *(Assuming the newly created PR or a seeded one is `order_id=2`)*
+   ```http
+   POST /api/orders/2/confirm
+   ```
+   *(No JSON body required)*
+
+2. **Warehouse Receives Stock** (Later, logged in as Warehouse)
+   *(Assuming the order status was manually advanced to "Shipped" or simulated)*
+   ```http
+   POST /api/orders/2/receive
+   ```
+   *(No JSON body required)*
+
+#### Scenario 4: Sales Representative Quoting a Sale
+**Objective**: A Sales rep assigned to Lazada quotes a sale for an Instant Water Heater (`test-RWH-2388-B`).
+
+1. **Login as Sales**
+   ```http
+   POST /api/login
+   ```
+   ```json
+   {
+     "email": "testsales@chinhinforcast.com",
+     "password": "password"
+   }
+   ```
+2. **Create Quote**
+   *(Assuming `pl_id=3` maps to the specific Product Location entry for this item in the Lazada channel)*
+   ```http
+   POST /api/sales
+   ```
+   ```json
+   {
+     "pl_id": 3,
+     "quantity_sold": 5,
+     "customer_name": "test Customer 1234",
+     "client_email": "testcustomer1234@example.com",
+     "price": 150.00
+   }
+   ```
+
+#### Scenario 5: Manager Creating a New Product & Vendor
+**Objective**: Adding a new supplier and tying a new product to the catalog.
+
+1. **Login as Manager**
+   ```http
+   POST /api/login
+   ```
+   ```json
+   {
+     "email": "testmanager@chinhinforcast.com",
+     "password": "password"
+   }
+   ```
+2. **Add Vendor**
+   ```http
+   POST /api/vendors
+   ```
+   ```json
+   {
+     "vendor_name": "test SmartHome Appliances",
+     "contact_person": "test Dave Wilson",
+     "phone_number": "+1122334466",
+     "is_overseas": false
+   }
+   ```
+3. **Add Product**
+   ```http
+   POST /api/products
+   ```
+   ```json
+   {
+     "model_code": "test-NEW-WIDGET-01",
+     "product_name": "test Smart Home Widget",
+     "category": "Accessories",
+     "brand": "test Rubine",
+     "status": "Active"
+   }
+   ```
