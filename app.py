@@ -8,7 +8,7 @@ from functools import wraps
 from sqlalchemy.orm import joinedload
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, SaleItem, Forecast, UserLocation, Invoice
+from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, SaleItem, Forecast, UserLocation, Invoice, FinetunedModel
 
 
 # Configure Logging
@@ -1105,6 +1105,38 @@ def api_forecast_products():
     } for prod in products]
 
     return jsonify(product_list)
+
+
+# API: Finetune Status
+@app.route('/api/forecast/finetune/status', methods=['GET'])
+@login_required
+def api_forecast_finetune_status():
+    model = FinetunedModel.query.order_by(FinetunedModel.created_at.desc()).first()
+    if not model:
+        return jsonify({'status': 'none'})
+    return jsonify({'status': model.status})
+
+# API: Trigger Finetuning
+@app.route('/api/forecast/finetune', methods=['POST'])
+@login_required
+def api_forecast_finetune():
+    try:
+        from scheduler import get_historical_sales_data
+        from azure_forecast import trigger_finetune_generation
+
+        # We retrieve all historical sales data system-wide to train a global model
+        historical_sales = get_historical_sales_data(product_id=None, days=730) # get 2 years of data
+
+        # Check if already pending
+        model = FinetunedModel.query.order_by(FinetunedModel.created_at.desc()).first()
+        if model and model.status == 'pending':
+            return jsonify({'success': False, 'message': 'Fine-tuning is already in progress'}), 400
+
+        trigger_finetune_generation(current_app, historical_sales)
+        return jsonify({'success': True, 'message': 'Fine-tuning started in the background'})
+    except Exception as e:
+        logger.error(f"Error starting fine-tuning: {str(e)}")
+        return jsonify({'success': False, 'message': 'Failed to start fine-tuning'}), 500
 
 
 # API: Get Forecast Data

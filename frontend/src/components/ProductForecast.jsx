@@ -34,9 +34,8 @@ const ProductForecast = () => {
   const [timeInterval, setTimeInterval] = useState('daily');
 
   // Projection controls state
-  const [sampleSize, setSampleSize] = useState('30');
-  const [projectionSize, setProjectionSize] = useState('1');
-  const [analysisPrompt, setAnalysisPrompt] = useState('');
+  const [finetuneStatus, setFinetuneStatus] = useState('none'); // 'none', 'pending', 'ready', 'failed'
+  const [finetuning, setFinetuning] = useState(false);
   const [visibleMAs, setVisibleMAs] = useState({
       MA3: true,
       MA7: false,
@@ -88,6 +87,28 @@ const ProductForecast = () => {
     };
     fetchProducts();
   }, [selectedLocation]);
+
+  // Poll Finetune Status
+  useEffect(() => {
+      let pollInterval;
+      const fetchStatus = async () => {
+          try {
+              const res = await axios.get('/api/forecast/finetune/status');
+              setFinetuneStatus(res.data.status); // 'pending', 'ready', 'failed', 'none'
+              if (res.data.status === 'pending') {
+                  setFinetuning(true);
+              } else {
+                  setFinetuning(false);
+              }
+          } catch (err) {
+              console.error("Failed to fetch finetune status", err);
+          }
+      };
+      fetchStatus();
+      pollInterval = setInterval(fetchStatus, 5000); // Poll every 5s
+
+      return () => clearInterval(pollInterval);
+  }, []);
 
   // Fetch Forecast Data when location, product, or interval change
   useEffect(() => {
@@ -142,8 +163,16 @@ const ProductForecast = () => {
       setVisibleMAs(prev => ({...prev, [ma]: !prev[ma]}));
   };
 
-  const handleProject = () => {
-      alert(`Projecting forecast using:\nSample Size: ${sampleSize} days\nProjection: ${projectionSize} month(s)\nPrompt: ${analysisPrompt}`);
+  const handleFinetune = async () => {
+      setFinetuning(true);
+      try {
+          await axios.post('/api/forecast/finetune');
+          setFinetuneStatus('pending');
+      } catch (err) {
+          console.error("Failed to start finetuning", err);
+          setFinetuning(false);
+          alert("Failed to start finetuning. Please try again.");
+      }
   };
 
   // Helper to render KPI value and handle nulls
@@ -477,52 +506,42 @@ const ProductForecast = () => {
 
                         {/* Bottom Control Panel for AI Projection */}
                         <div className="bg-gray-900 border border-gray-800 p-6 flex-none rounded-lg">
-                            <div className="max-w-4xl">
-                                <h3 className="text-gray-300 font-medium mb-4 flex items-center">
-                                    <span className="bg-indigo-500/20 text-indigo-400 p-1 rounded mr-2">
-                                        <Search className="h-4 w-4" />
-                                    </span>
-                                    AI Forecast Projection
-                                </h3>
-
-                                <div className="grid grid-cols-12 gap-6">
-                                    <div className="col-span-4 space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-400 mb-1">Sample Size (Historical Data)</label>
-                                            <Select value={sampleSize} onValueChange={setSampleSize} className="dark-theme-select">
-                                                <SelectItem value="10">Last 10 Days</SelectItem>
-                                                <SelectItem value="30">Last 30 Days</SelectItem>
-                                                <SelectItem value="60">Last 60 Days</SelectItem>
-                                            </Select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-400 mb-1">Projection Horizon</label>
-                                            <Select value={projectionSize} onValueChange={setProjectionSize} className="dark-theme-select">
-                                                <SelectItem value="1">1 Month</SelectItem>
-                                                <SelectItem value="2">2 Months</SelectItem>
-                                            </Select>
-                                        </div>
-                                    </div>
-
-                                    <div className="col-span-8 flex flex-col">
-                                        <label className="block text-xs font-medium text-gray-400 mb-1">Fundamental Analysis Prompt</label>
-                                        <Textarea
-                                            placeholder="Enter context for the reasoning model (e.g., 'Upcoming marketing campaign next week', 'Holiday season approaching', 'Competitor stockout')..."
-                                            className="flex-1 min-h-[80px] bg-gray-950 border-gray-700 text-gray-200 placeholder-gray-600 focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm"
-                                            value={analysisPrompt}
-                                            onChange={(e) => setAnalysisPrompt(e.target.value)}
-                                        />
-                                    </div>
+                            <div className="max-w-4xl flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <h3 className="text-gray-300 font-medium flex items-center">
+                                        <span className="bg-indigo-500/20 text-indigo-400 p-1 rounded mr-2">
+                                            <Search className="h-4 w-4" />
+                                        </span>
+                                        AI Forecast Projection
+                                    </h3>
+                                    {finetuneStatus === 'pending' && (
+                                        <span className="ml-4 text-sm text-indigo-400 flex items-center animate-pulse">
+                                            <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                                            Model is currently being fine-tuned globally...
+                                        </span>
+                                    )}
+                                    {finetuneStatus === 'ready' && (
+                                        <span className="ml-4 text-sm text-emerald-400 flex items-center">
+                                            <CheckCircle className="h-4 w-4 mr-2" />
+                                            Enhanced model is active for forecasts.
+                                        </span>
+                                    )}
+                                    {finetuneStatus === 'failed' && (
+                                        <span className="ml-4 text-sm text-rose-400 flex items-center">
+                                            <AlertTriangle className="h-4 w-4 mr-2" />
+                                            Previous fine-tuning failed.
+                                        </span>
+                                    )}
                                 </div>
 
-                                <div className="mt-4 flex justify-end">
+                                <div>
                                     <Button
                                         color="indigo"
-                                        onClick={handleProject}
-                                        disabled={!selectedProduct || dataLoading}
+                                        onClick={handleFinetune}
+                                        disabled={finetuning}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-8"
                                     >
-                                        Project Forecast
+                                        {finetuning ? 'Fine-tuning...' : 'Finetune Model'}
                                     </Button>
                                 </div>
                             </div>

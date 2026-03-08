@@ -235,3 +235,14 @@ class InternalMail(db.Model):
 
     def __repr__(self):
         return f'<InternalMail {self.id} S:{self.sender_id} R:{self.receiver_id}>'
+
+# 7. Finetuned Model
+class FinetunedModel(db.Model):
+    __tablename__ = 'finetuned_model'
+    id = db.Column(db.Integer, primary_key=True)
+    model_id = db.Column(db.String(200), nullable=True) # ID returned by Nixtla, nullable while pending
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(50), default='pending') # 'pending', 'ready', 'failed'
+
+    def __repr__(self):
+        return f'<FinetunedModel {self.id} Status:{self.status} ModelID:{self.model_id}>'
