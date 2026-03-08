@@ -17,9 +17,7 @@ from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendo
 import json
 from dotenv import load_dotenv
 
-from azure.identity import DefaultAzureCredential
-from azure.ai.projects import AIProjectClient
-
+from openai import OpenAI
 load_dotenv()
 
 
@@ -2373,41 +2371,26 @@ Output:
              emit('copilot_error', {'error': 'OPENROUTER_API_KEY not found in environment.'})
              return
 
-        headers = {
-            "Authorization": f"Bearer {openrouter_api_key}",
-            "Content-Type": "application/json"
-        }
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=openrouter_api_key,
+        )
 
-        payload = {
-            "model": "openai/gpt-5-nano",
-            "messages": [
+        response = client.chat.completions.create(
+            model="openai/gpt-5-nano",
+            messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": message}
             ],
-            "stream": True
-        }
-
-        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, stream=True)
-        response.raise_for_status()
+            stream=True
+        )
 
         output_text = ""
-        for line in response.iter_lines():
-            if line:
-                line_str = line.decode('utf-8')
-                if line_str.startswith('data: '):
-                    data_str = line_str[6:]
-                    if data_str == '[DONE]':
-                        break
-                    try:
-                        chunk = json.loads(data_str)
-                        if 'choices' in chunk and len(chunk['choices']) > 0:
-                            delta = chunk['choices'][0].get('delta', {})
-                            if 'content' in delta:
-                                content = delta['content']
-                                output_text += content
-                                emit('copilot_stream_chunk', {'chunk': content})
-                    except json.JSONDecodeError:
-                        pass
+        for chunk in response:
+            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                content = chunk.choices[0].delta.content
+                output_text += content
+                emit('copilot_stream_chunk', {'chunk': content})
 
         print(f"Agent Response: {output_text}")
 
