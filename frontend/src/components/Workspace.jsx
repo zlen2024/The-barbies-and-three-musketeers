@@ -1,5 +1,4 @@
-import React, { useState, useEffect, Fragment } from 'react';
-import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
+import React, { useState, useEffect } from 'react';
 import Layout from './Layout';
 import { Card, Title, Text, Button, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, TextInput, Select, SelectItem, Badge } from "@tremor/react";
 import { User, Users, Mail, Settings, LogOut, UserPlus, Send, Archive, Inbox, MessageSquarePlus } from 'lucide-react';
@@ -141,40 +140,6 @@ const TeamTab = ({ role, setActiveTab }) => {
   const [selectedLocation, setSelectedLocation] = useState("");
   const [usersList, setUsersList] = useState([]);
   const [locationsList, setLocationsList] = useState([]);
-  // Add User state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newUser, setNewUser] = useState({
-    username: '',
-    email: '',
-    password: '',
-    role: 'Staff'
-  });
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setNewUser(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleAddUser = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post('/api/workspace/users', newUser);
-      toast.success("User added successfully");
-      setIsModalOpen(false);
-      setNewUser({
-        username: '',
-        email: '',
-        password: '',
-        role: 'Staff'
-      });
-      fetchTeam();
-      if (role === 'Manager') {
-        fetchManagerData();
-      }
-    } catch (e) {
-      toast.error(e.response?.data?.message || "Failed to add user");
-    }
-  };
 
   useEffect(() => {
     fetchTeam();
@@ -205,6 +170,28 @@ const TeamTab = ({ role, setActiveTab }) => {
     } catch (err) {
         console.error("Failed to load users/locations for manager", err);
     }
+  };
+
+
+  const [newUser, setNewUser] = useState({ username: '', email: '', password: '', role: 'Staff' });
+  const [creatingUser, setCreatingUser] = useState(false);
+
+  const handleCreateUser = async () => {
+      if (!newUser.username || !newUser.email || !newUser.password || !newUser.role) {
+          alert('Please fill in all fields.');
+          return;
+      }
+      setCreatingUser(true);
+      try {
+          await axios.post('/api/users', newUser);
+          alert('User created successfully');
+          setNewUser({ username: '', email: '', password: '', role: 'Staff' });
+          fetchWorkspaceData(); // Refresh the users list
+      } catch (e) {
+          alert('Error creating user: ' + (e.response?.data?.error || e.message));
+      } finally {
+          setCreatingUser(false);
+      }
   };
 
   const handleAssignLocation = async () => {
@@ -269,16 +256,45 @@ const TeamTab = ({ role, setActiveTab }) => {
           </Card>
       )}
 
+      {role === 'Admin' && (
+          <Card>
+            <Title>Add New User</Title>
+            <Text>Create a new system user account.</Text>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                    <TextInput value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} placeholder="Username" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <TextInput value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} placeholder="Email" type="email" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <TextInput value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="Password" type="password" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                    <Select value={newUser.role} onValueChange={val => setNewUser({...newUser, role: val})} placeholder="Select Role">
+                        {['Admin', 'Manager', 'Warehouse', 'Procurement', 'Sales', 'Staff'].map(r => (
+                            <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                    </Select>
+                </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+                <Button icon={UserPlus} onClick={handleCreateUser} disabled={creatingUser}>
+                    {creatingUser ? 'Creating...' : 'Create User'}
+                </Button>
+            </div>
+          </Card>
+      )}
+
+
       <Card>
-          <div className="flex justify-between items-center mb-4">
-              <div>
-                  <Title>My Team</Title>
-                  <Text>Members of your assigned location(s).</Text>
-              </div>
-              {role === 'Admin' && (
-                  <Button icon={UserPlus} onClick={() => setIsModalOpen(true)}>Add User</Button>
-              )}
-          </div>
+          <Title>My Team</Title>
+          <Text className="mb-4">Members of your assigned location(s).</Text>
 
           {(role === 'Manager' || role === 'Admin') && teamData?.team_grouped ? (
               <div className="space-y-6">
@@ -343,80 +359,6 @@ const TeamTab = ({ role, setActiveTab }) => {
               </Table>
           )}
       </Card>
-
-      {/* Add User Modal */}
-      <Transition show={isModalOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-50" onClose={() => setIsModalOpen(false)}>
-          <TransitionChild
-            as={Fragment}
-            enter="ease-out duration-300"
-            enterFrom="opacity-0"
-            enterTo="opacity-100"
-            leave="ease-in duration-200"
-            leaveFrom="opacity-100"
-            leaveTo="opacity-0"
-          >
-            <div className="fixed inset-0 bg-black/30" />
-          </TransitionChild>
-
-          <div className="fixed inset-0 w-screen overflow-y-auto">
-            <div className="flex min-h-full items-center justify-center p-4 text-center">
-              <TransitionChild
-                as={Fragment}
-                enter="ease-out duration-300"
-                enterFrom="opacity-0 scale-95"
-                enterTo="opacity-100 scale-100"
-                leave="ease-in duration-200"
-                leaveFrom="opacity-100 scale-100"
-                leaveTo="opacity-0 scale-95"
-              >
-                <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                  <DialogTitle as="h3" className="text-lg font-medium leading-6 text-gray-900 mb-4">
-                    Add New User
-                  </DialogTitle>
-                  <form onSubmit={handleAddUser} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Username</label>
-                      <TextInput name="username" value={newUser.username} onChange={handleInputChange} required />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Email</label>
-                      <TextInput name="email" type="email" value={newUser.email} onChange={handleInputChange} required />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Password</label>
-                      <TextInput name="password" type="password" value={newUser.password} onChange={handleInputChange} required />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                      <select
-                          name="role"
-                          value={newUser.role}
-                          onChange={handleInputChange}
-                          className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
-                      >
-                          <option value="Admin">Admin</option>
-                          <option value="Manager">Manager</option>
-                          <option value="Warehouse">Warehouse</option>
-                          <option value="Sales">Sales</option>
-                          <option value="Staff">Staff</option>
-                      </select>
-                    </div>
-                    <div className="mt-6 flex justify-end space-x-3">
-                      <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button type="submit">
-                        Add User
-                      </Button>
-                    </div>
-                  </form>
-                </DialogPanel>
-              </TransitionChild>
-            </div>
-          </div>
-        </Dialog>
-      </Transition>
     </div>
   );
 };

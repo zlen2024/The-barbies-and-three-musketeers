@@ -31,9 +31,6 @@ db.init_app(app)
 
 # Start the background forecast scheduler immediately upon app instantiation
 # so it runs under gunicorn as well.
-from scheduler import init_scheduler
-# Need to pass the actual unproxied app object to threading logic
-init_scheduler(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
@@ -194,20 +191,26 @@ def api_dashboard():
 
     if system_forecast and system_forecast.forecast_data:
         try:
-            forecast_results = json.loads(system_forecast.forecast_data)
-            for f in forecast_results:
-                f_date = datetime.strptime(f['date'], "%Y-%m-%d")
-                chart_data.append({
-                    'date': f_date.strftime("%Y-%m-%d"),
-                    'Actual Sales': None,
-                    'AI Prediction': f['value']
-                })
-            forecast_unavailable = False
+            # Check if forecast is older than 24 hours
+            if system_forecast.last_updated and (datetime.utcnow() - system_forecast.last_updated).total_seconds() > 86400:
+                logger.warning("System-wide forecast data is older than 24 hours. Triggering background generation.")
+                forecast_unavailable = True
+            else:
+                forecast_results = json.loads(system_forecast.forecast_data)
+                for f in forecast_results:
+                    f_date = datetime.strptime(f['date'], "%Y-%m-%d")
+                    chart_data.append({
+                        'date': f_date.strftime("%Y-%m-%d"),
+                        'Actual Sales': None,
+                        'AI Prediction': f['value']
+                    })
+                forecast_unavailable = False
         except Exception as e:
             logger.error(f"Error parsing system forecast data: {e}")
 
     if forecast_unavailable:
-        logger.warning("System-wide forecast data not available. Triggering background generation.")
+        if not system_forecast or not system_forecast.forecast_data:
+            logger.warning("System-wide forecast data not available. Triggering background generation.")
         from azure_forecast import trigger_forecast_generation
         trigger_forecast_generation(current_app, None, historical_sales)
 
@@ -341,20 +344,25 @@ def _get_monthly_sales_trend(product_id):
 
     if product_forecast and product_forecast.forecast_data:
         try:
-            forecast_results = json.loads(product_forecast.forecast_data)
-            for f in forecast_results:
-                f_date = datetime.strptime(f['date'], "%Y-%m-%d")
-                sales_trend.append({
-                    'date': f_date.strftime("%Y-%m-%d"),
-                    'Actual Sales': None,
-                    'Forecast': f['value']
-                })
-            forecast_unavailable = False
+            if product_forecast.last_updated and (datetime.utcnow() - product_forecast.last_updated).total_seconds() > 86400:
+                logger.warning(f"Forecast data for product_id={product_id} is older than 24 hours. Triggering background generation.")
+                forecast_unavailable = True
+            else:
+                forecast_results = json.loads(product_forecast.forecast_data)
+                for f in forecast_results:
+                    f_date = datetime.strptime(f['date'], "%Y-%m-%d")
+                    sales_trend.append({
+                        'date': f_date.strftime("%Y-%m-%d"),
+                        'Actual Sales': None,
+                        'Forecast': f['value']
+                    })
+                forecast_unavailable = False
         except Exception as e:
             logger.error(f"Error parsing product forecast data for product_id={product_id}: {e}")
 
     if forecast_unavailable:
-        logger.warning(f"Forecast data not available for product_id={product_id}. Triggering background generation.")
+        if not product_forecast or not product_forecast.forecast_data:
+            logger.warning(f"Forecast data not available for product_id={product_id}. Triggering background generation.")
         from azure_forecast import trigger_forecast_generation
         trigger_forecast_generation(current_app, product_id, historical_sales)
 
@@ -457,6 +465,159 @@ def api_inventory_all():
         })
 
     return jsonify(inventory_list)
+
+from azure_margin_simulator import generate_margin_simulation
+
+# API: Margin Simulator Forecast
+@app.route('/api/margin-simulator/forecast', methods=['POST'])
+@login_required
+def api_margin_simulator_forecast():
+    data = request.json
+    product_id = data.get('product_id')
+    proposed_price = data.get('proposed_price')
+    volume_discount = data.get('volume_discount', 0.0)
+
+    if not product_id or proposed_price is None:
+        return jsonify({'success': False, 'message': 'product_id and proposed_price are required'}), 400
+
+    final_price = float(proposed_price) * (1 - (float(volume_discount) / 100.0))
+
+    try:
+        # Get historical sales data aggregated by week
+        # We need: unique_id (model_code), timestamp (weekly start), value (quantity), price (avg unit_price)
+
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({'success': False, 'message': 'Product not found'}), 404
+
+        unique_id = product.model_code
+
+        # We fetch daily data first and group by week in pandas for convenience
+        sales_data_raw = db.session.query(
+            db.func.date(Sale.sale_date).label('date'),
+            db.func.sum(SaleItem.quantity).label('total_quantity'),
+            db.func.sum(SaleItem.subtotal).label('total_subtotal')
+        ) \
+        .join(SaleItem, SaleItem.sale_id == Sale.id) \
+        .join(ProductLoc, ProductLoc.id == SaleItem.pl_id) \
+        .filter(ProductLoc.product_id == product_id) \
+        .group_by(db.func.date(Sale.sale_date)).all()
+
+        import pandas as pd
+        if not sales_data_raw:
+            return jsonify({'success': False, 'message': 'No sales history available to run simulation.'}), 400
+
+        df = pd.DataFrame([{
+            'date': item.date,
+            'quantity': item.total_quantity,
+            'subtotal': item.total_subtotal
+        } for item in sales_data_raw])
+
+        df['date'] = pd.to_datetime(df['date'])
+
+        # Resample to weekly
+        df.set_index('date', inplace=True)
+        weekly_df = df.resample('W').sum()
+        weekly_df.reset_index(inplace=True)
+
+        # Calculate weekly average price
+        # Prevent division by zero, use None for zero quantity to allow ffill/bfill
+        weekly_df['price'] = weekly_df.apply(lambda row: row['subtotal'] / row['quantity'] if row['quantity'] > 0 else None, axis=1)
+
+        # Forward fill and then backward fill missing prices so exogenous variable is continuous
+        weekly_df['price'] = weekly_df['price'].ffill().bfill()
+
+        # Format for Nixtla TimeGEN
+        sales_data = []
+        for index, row in weekly_df.iterrows():
+            # Include all weeks (even 0 quantity) to maintain continuous frequency for TimeGEN
+            sales_data.append({
+                'unique_id': unique_id,
+                'timestamp': row['date'].strftime('%Y-%m-%d'),
+                'value': row['subtotal'], # value is now subtotal for TimeGEN to forecast
+                'price': row['price'] if pd.notna(row['price']) else float(proposed_price), # fallback if no history at all
+                'quantity': row['quantity']
+            })
+
+        if not sales_data:
+            return jsonify({'success': False, 'message': 'No weekly sales data available to run simulation.'}), 400
+
+        # Add 0-filled weeks up to today to ensure we forecast from today forward
+        today = datetime.now()
+        last_date = pd.to_datetime(sales_data[-1]['timestamp'])
+
+        while last_date < today - pd.Timedelta(days=7):
+            last_date += pd.Timedelta(days=7)
+            sales_data.append({
+                'unique_id': unique_id,
+                'timestamp': last_date.strftime('%Y-%m-%d'),
+                'value': 0,
+                'price': sales_data[-1]['price'], # carry forward last known price
+                'quantity': 0
+            })
+
+        # Ensure we have at least a few data points
+        if len(sales_data) < 10:
+             logger.warning(f"Very few data points ({len(sales_data)}) for product_id={product_id}. The forecast might be inaccurate.")
+
+        # Call the simulation
+        simulation_result = generate_margin_simulation(product_id, sales_data, float(proposed_price), float(volume_discount))
+
+        if "error" in simulation_result:
+            return jsonify({'success': False, 'message': simulation_result["error"]}), 500
+
+        # Return the actuals (historical) alongside the forecast
+        actuals = [{
+            "date": d['timestamp'],
+            "subtotal": d['value'],
+            "price": d['price'],
+            "quantity": d['quantity']
+        } for d in sales_data]
+
+        return jsonify({
+            'success': True,
+            'actuals': actuals,
+            'forecast': simulation_result['forecast'],
+            'total_predicted_volume': simulation_result['total_volume'],
+            'proposed_price': final_price
+        })
+
+    except Exception as e:
+        logger.error(f"Error generating margin simulator forecast: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': 'Server error generating simulation.'}), 500
+
+from azure_margin_agent import generate_agentic_rationale
+
+# API: Margin Simulator Agentic Chat
+@app.route('/api/margin-simulator/chat', methods=['POST'])
+@login_required
+def api_margin_simulator_chat():
+    data = request.json
+    prompt = data.get('prompt')
+    image_base64 = data.get('image_base64')
+
+    if not prompt or not image_base64:
+        return jsonify({'success': False, 'message': 'prompt and image_base64 are required'}), 400
+
+    # Ensure it doesn't include the data:image/png;base64, prefix if it does
+    if image_base64.startswith('data:image'):
+        image_base64 = image_base64.split('base64,')[1]
+
+    try:
+        result = generate_agentic_rationale(prompt, image_base64)
+        if "error" in result:
+             return jsonify({'success': False, 'message': result["error"]}), 500
+
+        return jsonify({
+            'success': True,
+            'rationale': result['rationale']
+        })
+    except Exception as e:
+        logger.error(f"Error in margin simulator chat: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error generating rationale.'}), 500
+
 
 # API: Add Product
 @app.route('/api/products', methods=['POST'])
@@ -802,8 +963,48 @@ def api_order_detail(order_id):
     return jsonify(data)
 
 # API: Confirm Order
+
+@app.route('/api/orders/<int:order_id>/receive', methods=['POST'])
+@login_required
+@role_required('Warehouse', 'Admin')
+def api_receive_order(order_id):
+    order = ProductOrder.query.get(order_id)
+    if not order:
+        return jsonify({'error': 'Order not found'}), 404
+
+    if order.status == 'Received':
+         return jsonify({'success': False, 'message': 'Order already received'}), 400
+
+    if order.status != 'Shipped':
+         return jsonify({'success': False, 'message': 'Order must be Shipped before it can be received'}), 400
+
+    order.status = 'Received'
+
+    # Update inventory
+    pv = order.product_vendor
+    ul = UserLocation.query.get(order.ul_id)
+    location_id = ul.location_id
+
+    product_loc = ProductLoc.query.filter_by(product_id=pv.product_id, location_id=location_id).first()
+    if product_loc:
+        product_loc.quantity += order.order_qty
+        product_loc.last_updated = datetime.utcnow()
+    else:
+        product_loc = ProductLoc(product_id=pv.product_id, location_id=location_id, quantity=order.order_qty, reorder_point=0)
+        db.session.add(product_loc)
+
+    try:
+        db.session.commit()
+        logger.info(f"Order received successfully: ID {order_id} by user {current_user.username}")
+        return jsonify({'success': True, 'message': 'Order received successfully'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error receiving order {order_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/orders/<int:order_id>/confirm', methods=['POST'])
 @login_required
+@role_required('Manager', 'Admin')
 def api_confirm_order(order_id):
     order = ProductOrder.query.get(order_id)
     if not order:
@@ -899,7 +1100,8 @@ def api_forecast_products():
         'sku_id': prod.model_code,
         'product_name': prod.product_name,
         'category': prod.category,
-        'brand': prod.brand
+        'brand': prod.brand,
+        'price': prod.pricing[0].lsp_price if prod.pricing else 0
     } for prod in products]
 
     return jsonify(product_list)
@@ -912,6 +1114,20 @@ def api_forecast_data():
     location_id = request.args.get('location_id')
     product_id = request.args.get('product_id')
     interval = request.args.get('interval', 'daily') # 'daily', 'weekly', 'biweekly', 'monthly'
+
+    # Ensure forecast data is fresh
+    if product_id and product_id != 'ALL':
+        try:
+            prod_id_int = int(product_id)
+            product_forecast = Forecast.query.filter_by(product_id=prod_id_int).first()
+            if not product_forecast or not product_forecast.forecast_data or (product_forecast.last_updated and (datetime.utcnow() - product_forecast.last_updated).total_seconds() > 86400):
+                logger.warning(f"Forecast data for product_id={product_id} is missing or older than 24 hours. Triggering background generation.")
+                from scheduler import get_historical_sales_data
+                from azure_forecast import trigger_forecast_generation
+                historical_sales = get_historical_sales_data(product_id=prod_id_int, days=140)
+                trigger_forecast_generation(current_app, prod_id_int, historical_sales)
+        except ValueError:
+            pass
 
     if not location_id or not product_id:
         return jsonify({'error': 'Location ID and Product ID are required'}), 400
@@ -1487,29 +1703,37 @@ def serve(path):
     else:
         return send_from_directory(app.static_folder, 'index.html')
 
-# API: Add User
-@app.route('/api/workspace/users', methods=['POST'])
+
+# API: Get Workspace Team
+
+@app.route('/api/users', methods=['POST'])
 @login_required
 @role_required('Admin')
-def api_workspace_add_user():
+def api_create_user():
     data = request.json
     username = data.get('username')
     email = data.get('email')
     password = data.get('password')
     role = data.get('role')
 
-    if not username or not email or not password or not role:
-        return jsonify({'success': False, 'message': 'Missing fields'}), 400
+    if not all([username, email, password, role]):
+        return jsonify({'error': 'Missing required fields'}), 400
 
-    if User.query.filter((User.username == username) | (User.email == email)).first():
-        return jsonify({'success': False, 'message': 'Username or email already exists'}), 400
+    if User.query.filter_by(username=username).first() or User.query.filter_by(email=email).first():
+        return jsonify({'error': 'User already exists'}), 400
 
-    new_user = User(username=username, email=email, password_hash=generate_password_hash(password), role=role)
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify({'success': True, 'message': 'User created successfully', 'user_id': new_user.id})
+    hashed_password = generate_password_hash(password)
+    new_user = User(username=username, email=email, password=hashed_password, role=role)
 
-# API: Get Workspace Team
+    try:
+        db.session.add(new_user)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'User created successfully', 'user_id': new_user.id})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating user: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/workspace/team', methods=['GET'])
 @login_required
 def api_workspace_team():
@@ -1517,7 +1741,12 @@ def api_workspace_team():
     user_locations = UserLocation.query.filter_by(uid=user.id).all()
     location_ids = [ul.location_id for ul in user_locations]
 
-    if user.role == 'Manager':
+    if user.role in ['Manager', 'Admin']:
+        if user.role == 'Admin':
+            # Admin gets all users grouped by all locations
+            locations = Location.query.all()
+            location_ids = [l.id for l in locations]
+
         # Manager gets all members from all assigned locations, grouped by location
         team_data = []
         for loc_id in location_ids:

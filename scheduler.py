@@ -3,10 +3,10 @@ import threading
 from datetime import datetime, timedelta
 import logging
 import pandas as pd
+from app import app
 from models import db, Product, SaleItem, Sale, ProductLoc
 from azure_forecast import trigger_forecast_generation
 from sqlalchemy import func
-from flask import current_app
 import os
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ def get_historical_sales_data(product_id=None, days=140):
 
     return weekly_data
 
-def run_forecast_job(app):
+def run_forecast_job():
     logger.info("Running scheduled forecast job for all products and system-wide.")
     with app.app_context():
         try:
@@ -112,12 +112,12 @@ def run_forecast_job(app):
         except Exception as e:
             logger.error(f"Error in scheduled forecast job: {e}")
 
-def forecast_scheduler(app):
+def forecast_scheduler():
     logger.info("Forecast scheduler thread started.")
 
     # Run once on startup (wait a few seconds for app to fully boot if needed)
     time.sleep(10)
-    run_forecast_job(app)
+    run_forecast_job()
 
     while True:
         now = datetime.now()
@@ -125,14 +125,14 @@ def forecast_scheduler(app):
         # Check if it's 12:00 AM (00:00)
         # We can run it if hour is 0 and minute is 0
         if now.hour == 0 and now.minute == 0:
-            run_forecast_job(app)
+            run_forecast_job()
             # Sleep for 61 seconds to avoid triggering multiple times in the same minute
             time.sleep(61)
         else:
             # Sleep for a minute before checking again
             time.sleep(60)
 
-def init_scheduler(app):
+def init_scheduler():
     global _scheduler_started
     # In Flask dev server, Werkzeug restarts the process.
     # To avoid running twice, we can check Werkzeug's internal flag or just use our own.
@@ -141,6 +141,6 @@ def init_scheduler(app):
         return
 
     _scheduler_started = True
-    thread = threading.Thread(target=forecast_scheduler, args=(app,))
+    thread = threading.Thread(target=forecast_scheduler)
     thread.daemon = True
     thread.start()

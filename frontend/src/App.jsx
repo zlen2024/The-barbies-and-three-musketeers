@@ -11,22 +11,19 @@ import OrderDetail from './components/OrderDetail';
 import Workspace from './components/Workspace';
 import Warehouse from './components/Warehouse';
 import SalesHub from './components/SalesHub';
+import MarginSimulator from './components/MarginSimulator';
 import { ToastContainer } from 'react-toastify';
 import './index.css';
 
 // Simple Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  // In a real app, check for token/session validity
-  // Here we just check if userRole exists in localStorage for demo
   const userRole = localStorage.getItem('userRole');
   if (!userRole) {
     return <Navigate to="/" replace />;
   }
-
   if (allowedRoles && !allowedRoles.includes(userRole)) {
     return <Navigate to="/dashboard" replace />;
   }
-
   return children;
 };
 
@@ -40,6 +37,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/margin-simulator"
+          element={
+            <ProtectedRoute>
+              <MarginSimulator />
             </ProtectedRoute>
           }
         />
