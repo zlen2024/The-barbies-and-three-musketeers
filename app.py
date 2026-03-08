@@ -8,6 +8,7 @@ from functools import wraps
 from sqlalchemy.orm import joinedload
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.exceptions import HTTPException
 from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendor, ProductOrder, Pricing, Campaign, Sale, SaleItem, Forecast, UserLocation, Invoice
 
 
@@ -22,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configure Flask to serve React build files
-app = Flask(__name__, static_folder='frontend/dist')
+app = Flask(__name__, static_folder='frontend/dist', static_url_path='/')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -67,6 +68,14 @@ def add_security_headers(response):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
+    # If it's a 404 from the static file resolver, return index.html for frontend routing
+    if isinstance(e, HTTPException):
+        if e.code == 404 and not request.path.startswith('/api/'):
+            if os.path.exists(os.path.join(app.static_folder, 'index.html')):
+                return send_from_directory(app.static_folder, 'index.html')
+            return e # Let it fallback to 404 if no index.html
+        return e # Let other HTTPExceptions pass through as normal
+
     # Log the full stack trace
     logger.error(f"Unhandled Exception: {str(e)}\n{traceback.format_exc()}")
     # Return JSON for API routes
