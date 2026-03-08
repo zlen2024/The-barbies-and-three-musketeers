@@ -183,7 +183,7 @@ const ProductForecast = () => {
 
   return (
     <Layout isFixed={true} isDark={true}>
-      <div className="flex h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex flex-1 min-h-0 w-full">
 
         {/* Left Sidebar - Markets / Products */}
         <div className="w-80 bg-gray-900 border-r border-gray-800 flex flex-col flex-none">
@@ -313,7 +313,7 @@ const ProductForecast = () => {
                 </div>
             </div>
 
-            <div className="p-6 flex flex-col min-h-0 space-y-6 flex-1 pb-24">
+            <div className="p-6 flex flex-col min-h-0 space-y-6 flex-1 pb-6">
                 {dataLoading ? (
                     <div className="flex-1 flex items-center justify-center">
                         <Loader2 className="animate-spin text-indigo-500 h-8 w-8" />
