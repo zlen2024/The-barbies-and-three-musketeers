@@ -1729,117 +1729,6 @@ def api_assign_location():
 import pandas as pd
 from nixtla import NixtlaClient
 import traceback
-from models import FinetunedModel
-
-@socketio.on('finetune_model_ws')
-def handle_finetune_model_ws(data):
-    try:
-        if not current_user.is_authenticated:
-            emit('finetune_error', {'error': 'Unauthorized'})
-            return
-
-        emit('finetune_progress', {'status': 'Initializing Fine-tuning...', 'progress': 10})
-
-        historical_data = data.get('historical_data', [])
-        interval = data.get('interval', 'daily')
-        location_id = data.get('location_id', 'ALL')
-        product_id = data.get('product_id', 'ALL')
-
-        if not historical_data:
-            emit('finetune_error', {'error': 'No historical data provided.'})
-            return
-
-        emit('finetune_progress', {'status': 'Processing historical data...', 'progress': 30})
-
-        # Format for Nixtla TimeGEN
-        sales_data = []
-        for row in historical_data:
-            sales_data.append({
-                'timestamp': row['date'],
-                'value': float(row['volume']) if 'volume' in row else 0.0
-            })
-
-        df = pd.DataFrame(sales_data)
-
-        def clean_date(d):
-            if ' to ' in d:
-                return d.split(' to ')[0]
-            if len(d) > 10:
-                try:
-                    return datetime.strptime(d, "%b %Y").strftime("%Y-%m-01")
-                except:
-                    return d
-            return d
-
-        df['timestamp'] = df['timestamp'].apply(clean_date)
-        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-        df = df.dropna(subset=['timestamp'])
-        df = df.sort_values(by='timestamp')
-
-        if df.empty:
-            emit('finetune_error', {'error': 'Failed to parse dates from historical data.'})
-            return
-
-        api_key = os.environ.get('AZURE_TIMEGEN_API_KEY')
-        if not api_key:
-            emit('finetune_error', {'error': 'AZURE_TIMEGEN_API_KEY not found in environment.'})
-            return
-
-        client = NixtlaClient(
-            base_url="https://TimeGEN-1-ChinHin.eastus2.models.ai.azure.com",
-            api_key=api_key
-        )
-
-        # Check for existing finetuned model
-        existing_model = FinetunedModel.query.filter_by(location_id=str(location_id), product_id=str(product_id)).first()
-        if existing_model:
-            emit('finetune_progress', {'status': 'Deleting old fine-tuned model...', 'progress': 50})
-            try:
-                client.delete_finetuned_model(existing_model.finetuned_model_id)
-            except Exception as e:
-                logger.warning(f"Failed to delete old model {existing_model.finetuned_model_id} via API, it may already be deleted: {str(e)}")
-            db.session.delete(existing_model)
-            db.session.commit()
-
-        emit('finetune_progress', {'status': 'Fine-tuning model on data...', 'progress': 70})
-
-        new_model_id = f"finetuned_{location_id}_{product_id}_{int(datetime.utcnow().timestamp())}"
-
-        freq_map = {
-            'daily': 'D',
-            'weekly': '7D',
-            'biweekly': '14D',
-            'monthly': 'MS'
-        }
-        freq = freq_map.get(interval, 'D')
-
-        client.finetune(
-            df=df,
-            output_model_id=new_model_id,
-            finetune_steps=10,
-            finetune_depth=3,
-            freq=freq,
-            time_col='timestamp',
-            target_col='value'
-        )
-
-        emit('finetune_progress', {'status': 'Saving model info...', 'progress': 90})
-
-        new_finetuned_record = FinetunedModel(
-            location_id=str(location_id),
-            product_id=str(product_id),
-            finetuned_model_id=new_model_id
-        )
-        db.session.add(new_finetuned_record)
-        db.session.commit()
-
-        emit('finetune_progress', {'status': 'Complete', 'progress': 100})
-        emit('finetune_complete', {'success': True, 'model_id': new_model_id})
-
-    except Exception as e:
-        logger.error(f"WebSocket Finetune Error: {str(e)}\n{traceback.format_exc()}")
-        emit('finetune_error', {'error': f"Server error: {str(e)}"})
-
 
 @socketio.on('generate_forecast_ws')
 def handle_generate_forecast_ws(data):
@@ -1920,13 +1809,6 @@ def handle_generate_forecast_ws(data):
         print(f"[DEBUG WebSocket] DataFrame head:\n{df.head()}")
         print(f"[DEBUG WebSocket] DataFrame tail:\n{df.tail()}")
 
-        # Check for fine-tuned model
-        existing_model = FinetunedModel.query.filter_by(location_id=str(location_id), product_id=str(product_id)).first()
-        finetuned_model_id = existing_model.finetuned_model_id if existing_model else None
-
-        if finetuned_model_id:
-            emit('forecast_progress', {'status': 'Using fine-tuned model...', 'progress': 75})
-
         # Generate forecast
         forecast_kwargs = {
             'df': df,
@@ -1935,9 +1817,6 @@ def handle_generate_forecast_ws(data):
             'time_col': 'timestamp',
             'target_col': 'value'
         }
-
-        if finetuned_model_id:
-            forecast_kwargs['finetuned_model_id'] = finetuned_model_id
 
         timegen_fcst_df = client.forecast(**forecast_kwargs)
 

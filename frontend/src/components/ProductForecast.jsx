@@ -245,54 +245,6 @@ const ProductForecast = () => {
       });
   };
 
-  const handleFinetune = () => {
-      if (!chartData || chartData.length === 0) return;
-
-      setWsLoading(true);
-      setWsStatus('Connecting for Fine-tuning...');
-
-      const visibleData = chartData.slice(
-          Math.max(0, startIndex),
-          endIndex !== undefined ? endIndex + 1 : chartData.length
-      );
-      const historicalData = visibleData.filter(d => d.volume !== undefined && d.volume !== null);
-
-      const newSocket = io(window.location.origin);
-
-      newSocket.on('connect', () => {
-          console.log('[DEBUG WebSocket] Connected. Emitting finetune_model_ws payload:', {
-              historical_data_length: historicalData.length,
-              interval: timeInterval,
-              location_id: selectedLocation,
-              product_id: selectedProduct
-          });
-          newSocket.emit('finetune_model_ws', {
-              historical_data: historicalData,
-              interval: timeInterval,
-              location_id: selectedLocation,
-              product_id: selectedProduct
-          });
-      });
-
-      newSocket.on('finetune_progress', (data) => {
-          setWsStatus(data.status);
-      });
-
-      newSocket.on('finetune_complete', (data) => {
-          setWsLoading(false);
-          setWsStatus('');
-          toast.success(`Fine-tuning complete! The next forecast projection will use this improved model.`);
-          newSocket.disconnect();
-      });
-
-      newSocket.on('finetune_error', (data) => {
-          toast.error(`Fine-tuning failed: ${data.error}`);
-          setWsLoading(false);
-          setWsStatus('');
-          newSocket.disconnect();
-      });
-  };
-
   const handleBrushChange = (newBrush) => {
       if (newBrush && newBrush.startIndex !== undefined) {
           setStartIndex(newBrush.startIndex);
@@ -644,7 +596,11 @@ const ProductForecast = () => {
                                 </h3>
 
                                 <p className="text-sm text-gray-400 mb-4">
-                                    Use the visible chart data to train a tailored model for this specific product and location. Fine-tuning improves performance by capturing unique local trends. Once fine-tuned, standard forecasts will automatically use your custom model.
+                                    Use the visible chart data to project future demand for this specific product and location.
+                                    <br />
+                                    <span className="text-xs text-gray-500 italic mt-1 block">
+                                        Note: Forecasted data may not be fully accurate if the input data is too noisy or lacks a clear trend.
+                                    </span>
                                 </p>
 
                                 <div className="flex justify-end items-center">
@@ -655,20 +611,12 @@ const ProductForecast = () => {
                                         </div>
                                     )}
                                     <Button
-                                        color="emerald"
-                                        onClick={handleFinetune}
-                                        disabled={!selectedProduct || dataLoading || wsLoading}
-                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 mr-3"
-                                    >
-                                        {wsLoading && wsStatus.includes('Fine-tun') ? 'Fine-tuning...' : 'Fine-tune Forecast'}
-                                    </Button>
-                                    <Button
                                         color="indigo"
                                         onClick={handleProject}
                                         disabled={!selectedProduct || dataLoading || wsLoading}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-8"
                                     >
-                                        {wsLoading && !wsStatus.includes('Fine-tun') ? 'Projecting...' : 'Project Forecast'}
+                                        {wsLoading ? 'Projecting...' : 'Project Forecast'}
                                     </Button>
                                 </div>
                             </div>
