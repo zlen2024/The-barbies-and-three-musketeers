@@ -906,6 +906,35 @@ def api_forecast_products():
 
 
 # API: Get Forecast Data
+@app.route('/api/forecast/finetune/status', methods=['GET'])
+@login_required
+def api_forecast_finetune_status():
+    from models import FinetunedModel
+    from azure_forecast import is_finetuning_in_progress
+
+    in_progress = is_finetuning_in_progress()
+    ready_model = FinetunedModel.query.filter_by(status='ready').first()
+
+    return jsonify({
+        'is_finetuning': in_progress,
+        'has_finetuned_model': ready_model is not None
+    })
+
+@app.route('/api/forecast/finetune', methods=['POST'])
+@login_required
+def api_forecast_finetune():
+    if current_user.role not in ['Admin', 'Manager']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    system_data = get_historical_sales_data(product_id=None)
+    if not system_data:
+        return jsonify({'error': 'No historical data available to finetune on.'}), 400
+
+    from azure_forecast import trigger_finetune_generation
+    trigger_finetune_generation(current_app, system_data)
+
+    return jsonify({'message': 'Finetuning triggered successfully'})
+
 @app.route('/api/forecast/data', methods=['GET'])
 @login_required
 def api_forecast_data():

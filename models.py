@@ -204,6 +204,16 @@ class Invoice(db.Model):
     def __repr__(self):
         return f'<Invoice {self.invoice_number}>'
 
+class FinetunedModel(db.Model):
+    __tablename__ = 'finetuned_model'
+    id = db.Column(db.Integer, primary_key=True)
+    model_id = db.Column(db.String(100), nullable=False) # The ID from Nixtla
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(50), default='pending') # 'pending', 'ready', 'failed'
+
+    def __repr__(self):
+        return f'<FinetunedModel {self.model_id} ({self.status})>'
+
 # 5. Forecast
 class Forecast(db.Model):
     __tablename__ = 'forecast'
