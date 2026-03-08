@@ -1737,6 +1737,7 @@ def api_assign_location():
 import pandas as pd
 from nixtla import NixtlaClient
 import traceback
+from models import FinetunedModel
 
 @socketio.on('generate_forecast_ws')
 def handle_generate_forecast_ws(data):
@@ -1749,6 +1750,8 @@ def handle_generate_forecast_ws(data):
 
         historical_data = data.get('historical_data', [])
         interval = data.get('interval', 'daily')
+        location_id = data.get('location_id', 'ALL')
+        product_id = data.get('product_id', 'ALL')
 
         if not historical_data:
             emit('forecast_error', {'error': 'No historical data provided.'})
@@ -1815,14 +1818,26 @@ def handle_generate_forecast_ws(data):
         print(f"[DEBUG WebSocket] DataFrame head:\n{df.head()}")
         print(f"[DEBUG WebSocket] DataFrame tail:\n{df.tail()}")
 
+        # Check for fine-tuned model
+        existing_model = FinetunedModel.query.filter_by(location_id=str(location_id), product_id=str(product_id)).first()
+        finetuned_model_id = existing_model.finetuned_model_id if existing_model else None
+
+        if finetuned_model_id:
+            emit('forecast_progress', {'status': 'Using fine-tuned model...', 'progress': 75})
+
         # Generate forecast
-        timegen_fcst_df = client.forecast(
-            df=df,
-            h=horizon,
-            freq=freq,
-            time_col='timestamp',
-            target_col='value'
-        )
+        forecast_kwargs = {
+            'df': df,
+            'h': horizon,
+            'freq': freq,
+            'time_col': 'timestamp',
+            'target_col': 'value'
+        }
+
+        if finetuned_model_id:
+            forecast_kwargs['finetuned_model_id'] = finetuned_model_id
+
+        timegen_fcst_df = client.forecast(**forecast_kwargs)
 
         emit('forecast_progress', {'status': 'Finalizing payload...', 'progress': 90})
 
@@ -1896,7 +1911,7 @@ def api_create_user():
         return jsonify({'error': 'User already exists'}), 400
 
     hashed_password = generate_password_hash(password)
-    new_user = User(username=username, email=email, password_hash=hashed_password, role=role)
+    new_user = User(username=username, email=email, password=hashed_password, role=role)
 
     try:
         db.session.add(new_user)

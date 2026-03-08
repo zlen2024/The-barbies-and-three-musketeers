@@ -5,6 +5,7 @@ import { Card, Title, Text, Button, Select, SelectItem, TextInput, Textarea, Met
 import { Search, Loader2, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
+import { toast } from 'react-toastify';
 import {
   ComposedChart,
   Line,
@@ -175,11 +176,15 @@ const ProductForecast = () => {
           console.log('[DEBUG WebSocket] Connected. Emitting generate_forecast_ws payload:', {
               historical_data_length: historicalData.length,
               interval: timeInterval,
+              location_id: selectedLocation,
+              product_id: selectedProduct,
               historical_data_sample: historicalData.slice(0, 5)
           });
           newSocket.emit('generate_forecast_ws', {
               historical_data: historicalData,
-              interval: timeInterval
+              interval: timeInterval,
+              location_id: selectedLocation,
+              product_id: selectedProduct
           });
       });
 
@@ -233,11 +238,15 @@ const ProductForecast = () => {
       });
 
       newSocket.on('forecast_error', (data) => {
-          alert(`Forecast generation failed: ${data.error}`);
+          toast.error(`Forecast generation failed: ${data.error}`);
           setWsLoading(false);
           setWsStatus('');
           newSocket.disconnect();
       });
+  };
+
+  const handleFinetune = () => {
+      toast.info('Fine-tuning not available in Azure environment.');
   };
 
   const handleBrushChange = (newBrush) => {
@@ -590,37 +599,11 @@ const ProductForecast = () => {
                                     AI Forecast Projection
                                 </h3>
 
-                                <div className="grid grid-cols-12 gap-6">
-                                    <div className="col-span-4 space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-400 mb-1">Sample Size (Historical Data)</label>
-                                            <Select value={sampleSize} onValueChange={setSampleSize} className="dark-theme-select">
-                                                <SelectItem value="10">Last 10 Days</SelectItem>
-                                                <SelectItem value="30">Last 30 Days</SelectItem>
-                                                <SelectItem value="60">Last 60 Days</SelectItem>
-                                            </Select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-400 mb-1">Projection Horizon</label>
-                                            <Select value={projectionSize} onValueChange={setProjectionSize} className="dark-theme-select">
-                                                <SelectItem value="1">1 Month</SelectItem>
-                                                <SelectItem value="2">2 Months</SelectItem>
-                                            </Select>
-                                        </div>
-                                    </div>
+                                <p className="text-sm text-gray-400 mb-4">
+                                    Use the visible chart data to train a tailored model for this specific product and location. Fine-tuning improves performance by capturing unique local trends. Once fine-tuned, standard forecasts will automatically use your custom model.
+                                </p>
 
-                                    <div className="col-span-8 flex flex-col">
-                                        <label className="block text-xs font-medium text-gray-400 mb-1">Fundamental Analysis Prompt</label>
-                                        <Textarea
-                                            placeholder="Enter context for the reasoning model (e.g., 'Upcoming marketing campaign next week', 'Holiday season approaching', 'Competitor stockout')..."
-                                            className="flex-1 min-h-[80px] bg-gray-950 border-gray-700 text-gray-200 placeholder-gray-600 focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm"
-                                            value={analysisPrompt}
-                                            onChange={(e) => setAnalysisPrompt(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="mt-4 flex justify-end items-center">
+                                <div className="flex justify-end items-center">
                                     {wsLoading && (
                                         <div className="flex items-center text-sm text-indigo-400 mr-4">
                                             <Loader2 className="animate-spin h-4 w-4 mr-2" />
@@ -628,12 +611,20 @@ const ProductForecast = () => {
                                         </div>
                                     )}
                                     <Button
+                                        color="emerald"
+                                        onClick={handleFinetune}
+                                        disabled={!selectedProduct || dataLoading || wsLoading}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 mr-3"
+                                    >
+                                        {wsLoading && wsStatus.includes('Fine-tun') ? 'Fine-tuning...' : 'Fine-tune Forecast'}
+                                    </Button>
+                                    <Button
                                         color="indigo"
                                         onClick={handleProject}
                                         disabled={!selectedProduct || dataLoading || wsLoading}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-8"
                                     >
-                                        {wsLoading ? 'Projecting...' : 'Project Forecast'}
+                                        {wsLoading && !wsStatus.includes('Fine-tun') ? 'Projecting...' : 'Project Forecast'}
                                     </Button>
                                 </div>
                             </div>

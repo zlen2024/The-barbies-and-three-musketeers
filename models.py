@@ -205,6 +205,17 @@ class Invoice(db.Model):
         return f'<Invoice {self.invoice_number}>'
 
 # 5. Forecast
+class FinetunedModel(db.Model):
+    __tablename__ = 'finetuned_model'
+    id = db.Column(db.Integer, primary_key=True)
+    location_id = db.Column(db.String(50), nullable=False) # e.g. "ALL" or specific ID
+    product_id = db.Column(db.String(50), nullable=False)  # e.g. "ALL" or specific ID
+    finetuned_model_id = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<FinetunedModel L:{self.location_id} P:{self.product_id} ID:{self.finetuned_model_id}>'
+
 class Forecast(db.Model):
     __tablename__ = 'forecast'
     id = db.Column(db.Integer, primary_key=True)
