@@ -33,10 +33,11 @@ const ProductForecast = () => {
   const [dataLoading, setDataLoading] = useState(false);
   const [timeInterval, setTimeInterval] = useState('daily');
 
-  // Projection controls state
-  const [sampleSize, setSampleSize] = useState('30');
-  const [projectionSize, setProjectionSize] = useState('1');
-  const [analysisPrompt, setAnalysisPrompt] = useState('');
+  // Finetune controls state
+  const [isFinetuning, setIsFinetuning] = useState(false);
+  const [finetunedModelReady, setFinetunedModelReady] = useState(false);
+
+  // MAs
   const [visibleMAs, setVisibleMAs] = useState({
       MA3: true,
       MA7: false,
@@ -142,8 +143,31 @@ const ProductForecast = () => {
       setVisibleMAs(prev => ({...prev, [ma]: !prev[ma]}));
   };
 
-  const handleProject = () => {
-      alert(`Projecting forecast using:\nSample Size: ${sampleSize} days\nProjection: ${projectionSize} month(s)\nPrompt: ${analysisPrompt}`);
+  useEffect(() => {
+    checkFinetuneStatus();
+  }, []);
+
+  const checkFinetuneStatus = async () => {
+    try {
+      const response = await axios.get('/api/forecast/finetune/status', { withCredentials: true });
+      setIsFinetuning(response.data.is_finetuning);
+      setFinetunedModelReady(response.data.has_finetuned_model);
+    } catch (err) {
+      console.error('Error checking finetune status', err);
+    }
+  };
+
+  const handleFinetune = async () => {
+    setIsFinetuning(true);
+    try {
+      await axios.post('/api/forecast/finetune', {}, { withCredentials: true });
+      // In a real app we'd poll or wait for websocket, but here we just wait or start polling
+      checkFinetuneStatus();
+    } catch (error) {
+      console.error('Error starting finetune', error);
+      setIsFinetuning(false);
+      alert('Failed to start fine-tuning.');
+    }
   };
 
   // Helper to render KPI value and handle nulls
@@ -476,55 +500,38 @@ const ProductForecast = () => {
                         )}
 
                         {/* Bottom Control Panel for AI Projection */}
-                        <div className="bg-gray-900 border border-gray-800 p-6 flex-none rounded-lg">
-                            <div className="max-w-4xl">
-                                <h3 className="text-gray-300 font-medium mb-4 flex items-center">
-                                    <span className="bg-indigo-500/20 text-indigo-400 p-1 rounded mr-2">
-                                        <Search className="h-4 w-4" />
-                                    </span>
-                                    AI Forecast Projection
+                        <div className="bg-gray-900 border border-gray-800 p-6 flex-none rounded-lg flex items-center justify-between">
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-200 mb-1 flex items-center">
+                                    <TrendingUp className="w-4 h-4 mr-2 text-indigo-400" />
+                                    Fine-Tune Forecast Model
                                 </h3>
-
-                                <div className="grid grid-cols-12 gap-6">
-                                    <div className="col-span-4 space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-400 mb-1">Sample Size (Historical Data)</label>
-                                            <Select value={sampleSize} onValueChange={setSampleSize} className="dark-theme-select">
-                                                <SelectItem value="10">Last 10 Days</SelectItem>
-                                                <SelectItem value="30">Last 30 Days</SelectItem>
-                                                <SelectItem value="60">Last 60 Days</SelectItem>
-                                            </Select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-400 mb-1">Projection Horizon</label>
-                                            <Select value={projectionSize} onValueChange={setProjectionSize} className="dark-theme-select">
-                                                <SelectItem value="1">1 Month</SelectItem>
-                                                <SelectItem value="2">2 Months</SelectItem>
-                                            </Select>
-                                        </div>
-                                    </div>
-
-                                    <div className="col-span-8 flex flex-col">
-                                        <label className="block text-xs font-medium text-gray-400 mb-1">Fundamental Analysis Prompt</label>
-                                        <Textarea
-                                            placeholder="Enter context for the reasoning model (e.g., 'Upcoming marketing campaign next week', 'Holiday season approaching', 'Competitor stockout')..."
-                                            className="flex-1 min-h-[80px] bg-gray-950 border-gray-700 text-gray-200 placeholder-gray-600 focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm"
-                                            value={analysisPrompt}
-                                            onChange={(e) => setAnalysisPrompt(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="mt-4 flex justify-end">
-                                    <Button
-                                        color="indigo"
-                                        onClick={handleProject}
-                                        disabled={!selectedProduct || dataLoading}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-8"
-                                    >
-                                        Project Forecast
-                                    </Button>
-                                </div>
+                                <p className="text-xs text-gray-400">
+                                    {isFinetuning
+                                        ? "Model is currently being fine-tuned in the background..."
+                                        : finetunedModelReady
+                                            ? "A fine-tuned model is actively enhancing your forecasts."
+                                            : "Train the model on your specific dataset for more accurate forecasts."}
+                                </p>
+                            </div>
+                            <div className="flex justify-end">
+                                <Button
+                                    color="indigo"
+                                    onClick={handleFinetune}
+                                    disabled={isFinetuning}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-8"
+                                >
+                                    {isFinetuning ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Fine-tuning...
+                                        </>
+                                    ) : finetunedModelReady ? (
+                                        "Re-train Model"
+                                    ) : (
+                                        "Finetune Model"
+                                    )}
+                                </Button>
                             </div>
                         </div>
                     </>
