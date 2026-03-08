@@ -46,33 +46,33 @@ const Layout = ({ children, isFixed = false, isDark = false }) => {
       {/* Header */}
       <header className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b flex-none z-50`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
+          <div className="flex justify-between h-16 gap-4">
+            <div className="flex flex-1 min-w-0">
               <div className="flex-shrink-0 flex items-center">
                 <img src="/logo.png" alt="ChinHin Logo" className="h-8 w-auto mr-2" />
-                <span className="text-xl font-bold text-gray-900">ChinHin Forecasting Pro</span>
+                <span className="text-xl font-bold text-gray-900 truncate">ChinHin Forecasting Pro</span>
               </div>
-              <nav className="hidden sm:ml-6 sm:flex sm:space-x-8">
+              <nav className="hidden sm:ml-6 sm:flex sm:space-x-4 lg:space-x-8 overflow-x-auto scrollbar-hide">
                 {navItems.map((item) => {
                   const isActive = location.pathname.startsWith(item.path);
                   return (
                     <Link
                       key={item.name}
                       to={item.path}
-                      className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                      className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium whitespace-nowrap ${
                         isActive
                           ? (isDark ? 'border-indigo-400 text-white' : 'border-indigo-500 text-gray-900')
                           : (isDark ? 'border-transparent text-gray-400 hover:border-gray-300 hover:text-gray-200' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700')
                       }`}
                     >
-                      <item.icon className={`h-4 w-4 mr-2 ${isActive ? (isDark ? 'text-indigo-400' : 'text-indigo-500') : 'text-gray-400'}`} />
+                      <item.icon className={`flex-shrink-0 h-4 w-4 mr-2 ${isActive ? (isDark ? 'text-indigo-400' : 'text-indigo-500') : 'text-gray-400'}`} />
                       {item.name}
                     </Link>
                   );
                 })}
               </nav>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center flex-shrink-0">
               {/* Profile Dropdown */}
               <Menu as="div" className="relative ml-3">
                 <div>
