@@ -313,7 +313,7 @@ const ProductForecast = () => {
                 </div>
             </div>
 
-            <div className="p-6 flex flex-col min-h-0 space-y-6 flex-1">
+            <div className="p-6 flex flex-col min-h-0 space-y-6 flex-1 pb-24">
                 {dataLoading ? (
                     <div className="flex-1 flex items-center justify-center">
                         <Loader2 className="animate-spin text-indigo-500 h-8 w-8" />
