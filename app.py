@@ -91,20 +91,25 @@ from werkzeug.exceptions import HTTPException
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    if isinstance(e, HTTPException) and e.code == 404:
-        if not request.path.startswith('/api/'):
-            return send_from_directory(app.static_folder, 'index.html')
+    # If the exception is an HTTPException
+    if isinstance(e, HTTPException):
+        # Explicitly handle 404s for the frontend routing
+        if e.code == 404:
+            if not request.path.startswith('/api/'):
+                return send_from_directory(app.static_folder, 'index.html')
 
-    # Log the full stack trace
+        # For API requests returning HTTPExceptions (e.g. 401, 403, etc)
+        if request.path.startswith('/api/'):
+            return jsonify({'success': False, 'message': e.description, 'error': str(e)}), e.code
+
+        return e
+
+    # Log the full stack trace for non-HTTP exceptions
     logger.error(f"Unhandled Exception: {str(e)}\n{traceback.format_exc()}")
 
     # Return JSON for API routes
     if request.path.startswith('/api/'):
-        status_code = e.code if isinstance(e, HTTPException) else 500
-        return jsonify({'success': False, 'message': 'An error occurred', 'error': str(e)}), status_code
-
-    if isinstance(e, HTTPException):
-        return e
+        return jsonify({'success': False, 'message': 'An error occurred', 'error': str(e)}), 500
 
     # Otherwise render a generic error or just return string
     return "Internal Server Error", 500
