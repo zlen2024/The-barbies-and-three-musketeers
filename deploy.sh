@@ -32,7 +32,20 @@ fi
 
 if [ "$IN_ORYX_BUILD" != "true" ]; then
     echo "--> Running Oryx build..."
+
+    # Temporarily remove dist from .gitignore so Oryx doesn't exclude the React build
+    if [ -f "frontend/.gitignore" ]; then
+        echo "--> Modifying frontend/.gitignore to include dist..."
+        sed -i 's/^dist$/# dist/g' frontend/.gitignore
+    fi
+
     oryx build . -i /tmp/build -o "$DEPLOYMENT_TARGET" --platform python --platform-version 3.11
+
+    # Restore .gitignore
+    if [ -f "frontend/.gitignore" ]; then
+        echo "--> Restoring frontend/.gitignore..."
+        sed -i 's/^# dist$/dist/g' frontend/.gitignore
+    fi
 else
     echo "--> Already in Oryx build."
 fi
