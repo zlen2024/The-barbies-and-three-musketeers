@@ -15,10 +15,10 @@ def seed_database():
         print("Seeding Users...")
         # Users
         users = [
-            User(username='admin', email='admin@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Admin'),
-            User(username='warehouse', email='warehouse@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Warehouse'),
-            User(username='sales', email='sales@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Sales'),
-            User(username='manager', email='manager@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Manager')
+            User(username='admin', email='admin@chinhinforcast.com', password_hash=generate_password_hash('password', method='pbkdf2:sha256'), role='Admin'),
+            User(username='warehouse', email='warehouse@chinhinforcast.com', password_hash=generate_password_hash('password', method='pbkdf2:sha256'), role='Warehouse'),
+            User(username='sales', email='sales@chinhinforcast.com', password_hash=generate_password_hash('password', method='pbkdf2:sha256'), role='Sales'),
+            User(username='manager', email='manager@chinhinforcast.com', password_hash=generate_password_hash('password', method='pbkdf2:sha256'), role='Manager')
         ]
         db.session.add_all(users)
         db.session.commit()
