@@ -36,7 +36,18 @@ logger = logging.getLogger(__name__)
 # Configure Flask to serve React build files
 app = Flask(__name__, static_folder='frontend/dist', static_url_path='/')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
+
+# Use DATABASE_URL from environment variables for Azure SQL (or PostgreSQL/MySQL)
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    # Handle older Heroku-style postgres:// URLs just in case
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    # SQLAlchemy requires an explicit driver name for SQL Server, e.g. mssql+pyodbc://
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
@@ -1910,8 +1921,8 @@ def api_create_user():
     if User.query.filter_by(username=username).first() or User.query.filter_by(email=email).first():
         return jsonify({'error': 'User already exists'}), 400
 
-    hashed_password = generate_password_hash(password)
-    new_user = User(username=username, email=email, password=hashed_password, role=role)
+    hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+    new_user = User(username=username, email=email, password_hash=hashed_password, role=role)
 
     try:
         db.session.add(new_user)

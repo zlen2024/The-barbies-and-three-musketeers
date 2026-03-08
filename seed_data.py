@@ -15,12 +15,12 @@ def seed_database():
         print("Seeding Users...")
         # Users
         users = [
-            User(username='testadmin', email='testadmin@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Admin'),
-            User(username='testwarehouse', email='testwarehouse@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Warehouse'),
-            User(username='testsales', email='testsales@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Sales'),
-            User(username='testmanager', email='testmanager@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Manager'),
-            User(username='testwarehouse2', email='testwarehouse2@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Warehouse'),
-            User(username='testsales2', email='testsales2@chinhinforcast.com', password_hash=generate_password_hash('password'), role='Sales')
+            User(username='testadmin', email='testadmin@chinhinforcast.com', password_hash=generate_password_hash('password', method='pbkdf2:sha256'), role='Admin'),
+            User(username='testwarehouse', email='testwarehouse@chinhinforcast.com', password_hash=generate_password_hash('password', method='pbkdf2:sha256'), role='Warehouse'),
+            User(username='testsales', email='testsales@chinhinforcast.com', password_hash=generate_password_hash('password', method='pbkdf2:sha256'), role='Sales'),
+            User(username='testmanager', email='testmanager@chinhinforcast.com', password_hash=generate_password_hash('password', method='pbkdf2:sha256'), role='Manager'),
+            User(username='testwarehouse2', email='testwarehouse2@chinhinforcast.com', password_hash=generate_password_hash('password', method='pbkdf2:sha256'), role='Warehouse'),
+            User(username='testsales2', email='testsales2@chinhinforcast.com', password_hash=generate_password_hash('password', method='pbkdf2:sha256'), role='Sales')
         ]
         db.session.add_all(users)
         db.session.commit()
