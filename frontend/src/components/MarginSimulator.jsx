@@ -152,9 +152,9 @@ const MarginSimulator = () => {
 
     return (
         <Layout>
-            <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-100px)]">
+            <div className="flex flex-col md:flex-row gap-6">
                 {/* Sidebar */}
-                <Card className="w-full md:w-1/4 h-full overflow-y-auto flex-shrink-0">
+                <Card className="w-full md:w-1/4 flex-shrink-0">
                     <Title className="mb-4">Select Product</Title>
                     {loadingProducts ? (
                         <div className="text-center py-4 text-gray-500">Loading products...</div>
@@ -182,7 +182,7 @@ const MarginSimulator = () => {
                 </Card>
 
                 {/* Main Content */}
-                <div className="w-full md:w-3/4 flex flex-col gap-6 overflow-y-auto pr-2">
+                <div className="w-full md:w-3/4 flex flex-col gap-6 pr-2">
                     <div className="flex justify-between items-center">
                         <div>
                             <Title>Margin Simulator {selectedProduct && `- ${selectedProduct.product_name}`}</Title>
@@ -273,7 +273,7 @@ const MarginSimulator = () => {
                     </div>
 
                     {/* Chart */}
-                    <Card className="flex-1 min-h-[400px]">
+                    <Card>
                         <div id="simulation-chart-container" className="p-4 bg-white rounded-lg">
                             <Title>Demand Volume Projection</Title>
                             <Text>Historical actuals vs simulated forecast based on your price inputs.</Text>
@@ -283,19 +283,52 @@ const MarginSimulator = () => {
                                      <Text className="text-indigo-500 animate-pulse">Running AI Simulation...</Text>
                                  </div>
                             ) : simulationData ? (
-                                <LineChart
-                                    className="mt-6 h-72"
-                                    data={simulationData.chartData}
-                                    index="date"
-                                    categories={[
-                                        "Historical Subtotal (k)", "Forecasted Subtotal (k)",
-                                        "Historical Quantity", "Forecasted Quantity",
-                                        "Historical Price", "Forecasted Price"
-                                    ]}
-                                    colors={["blue", "blue-500", "emerald", "emerald-500", "amber", "amber-500"]}
-                                    valueFormatter={numberFormatter}
-                                    yAxisWidth={60}
-                                />
+                                <div className="mt-6 flex flex-col gap-8">
+                                    <div>
+                                        <Title className="text-sm text-gray-500 mb-2">Subtotal (k)</Title>
+                                        <LineChart
+                                            className="h-72"
+                                            data={simulationData.chartData}
+                                            index="date"
+                                            categories={[
+                                                "Historical Subtotal (k)", "Forecasted Subtotal (k)"
+                                            ]}
+                                            colors={["blue", "blue-500"]}
+                                            valueFormatter={numberFormatter}
+                                            yAxisWidth={60}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <Title className="text-sm text-gray-500 mb-2">Quantity</Title>
+                                        <LineChart
+                                            className="h-72"
+                                            data={simulationData.chartData}
+                                            index="date"
+                                            categories={[
+                                                "Historical Quantity", "Forecasted Quantity"
+                                            ]}
+                                            colors={["emerald", "emerald-500"]}
+                                            valueFormatter={numberFormatter}
+                                            yAxisWidth={60}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <Title className="text-sm text-gray-500 mb-2">Price</Title>
+                                        <LineChart
+                                            className="h-72"
+                                            data={simulationData.chartData}
+                                            index="date"
+                                            categories={[
+                                                "Historical Price", "Forecasted Price"
+                                            ]}
+                                            colors={["amber", "amber-500"]}
+                                            valueFormatter={numberFormatter}
+                                            yAxisWidth={60}
+                                        />
+                                    </div>
+                                </div>
                             ) : (
                                 <div className="h-72 flex items-center justify-center text-gray-400">
                                     <Text>Waiting for simulation.</Text>
