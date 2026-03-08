@@ -246,51 +246,7 @@ const ProductForecast = () => {
   };
 
   const handleFinetune = () => {
-      if (!chartData || chartData.length === 0) return;
-
-      setWsLoading(true);
-      setWsStatus('Connecting for Fine-tuning...');
-
-      const visibleData = chartData.slice(
-          Math.max(0, startIndex),
-          endIndex !== undefined ? endIndex + 1 : chartData.length
-      );
-      const historicalData = visibleData.filter(d => d.volume !== undefined && d.volume !== null);
-
-      const newSocket = io(window.location.origin);
-
-      newSocket.on('connect', () => {
-          console.log('[DEBUG WebSocket] Connected. Emitting finetune_model_ws payload:', {
-              historical_data_length: historicalData.length,
-              interval: timeInterval,
-              location_id: selectedLocation,
-              product_id: selectedProduct
-          });
-          newSocket.emit('finetune_model_ws', {
-              historical_data: historicalData,
-              interval: timeInterval,
-              location_id: selectedLocation,
-              product_id: selectedProduct
-          });
-      });
-
-      newSocket.on('finetune_progress', (data) => {
-          setWsStatus(data.status);
-      });
-
-      newSocket.on('finetune_complete', (data) => {
-          setWsLoading(false);
-          setWsStatus('');
-          toast.success(`Fine-tuning complete! The next forecast projection will use this improved model.`);
-          newSocket.disconnect();
-      });
-
-      newSocket.on('finetune_error', (data) => {
-          toast.error(`Fine-tuning failed: ${data.error}`);
-          setWsLoading(false);
-          setWsStatus('');
-          newSocket.disconnect();
-      });
+      toast.info('Fine-tuning not available in Azure environment.');
   };
 
   const handleBrushChange = (newBrush) => {
