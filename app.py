@@ -88,6 +88,7 @@ def add_security_headers(response):
     return response
 
 from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import NotFound
 
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -96,7 +97,10 @@ def handle_exception(e):
         # Explicitly handle 404s for the frontend routing
         if e.code == 404:
             if not request.path.startswith('/api/'):
-                return send_from_directory(app.static_folder, 'index.html')
+                try:
+                    return send_from_directory(app.static_folder, 'index.html')
+                except NotFound:
+                    return jsonify({'success': False, 'message': 'Frontend not built or index.html not found'}), 404
 
         # For API requests returning HTTPExceptions (e.g. 401, 403, etc)
         if request.path.startswith('/api/'):
