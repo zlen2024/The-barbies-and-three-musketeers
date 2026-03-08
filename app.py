@@ -2013,7 +2013,7 @@ def api_create_user():
         return jsonify({'error': 'User already exists'}), 400
 
     hashed_password = generate_password_hash(password)
-    new_user = User(username=username, email=email, password=hashed_password, role=role)
+    new_user = User(username=username, email=email, password_hash=hashed_password, role=role)
 
     try:
         db.session.add(new_user)
