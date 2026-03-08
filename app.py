@@ -2270,6 +2270,8 @@ def api_warehouse_product_stats():
 
 
 
+import requests
+
 @socketio.on('copilot_chat')
 def handle_copilot_chat_ws(data):
     try:
@@ -2284,39 +2286,129 @@ def handle_copilot_chat_ws(data):
             emit('copilot_error', {'error': 'No message provided.'})
             return
 
-        emit('copilot_progress', {'status': 'Connecting to Azure AI Project...'})
+        emit('copilot_progress', {'status': 'Preparing context...'})
 
-        myEndpoint = os.environ.get("AZURE_EXISTING_AIPROJECT_ENDPOINT", "https://barbieai.services.ai.azure.com/api/projects/proj-Barbie")
+        # Find product details
+        product = Product.query.filter_by(model_code=sku).first()
+        if not product:
+            emit('copilot_error', {'error': f'Product {sku} not found.'})
+            return
 
-        project_client = AIProjectClient(
-            endpoint=myEndpoint,
-            credential=DefaultAzureCredential(),
-        )
+        # Find location (ul_id)
+        ul_id = None
+        user_loc = UserLocation.query.filter_by(uid=current_user.id).first()
+        if user_loc:
+            ul_id = user_loc.ul_id
+        else:
+            # Fallback to a valid UserLocation or just a location_id logic if needed,
+            # but usually users have at least one UserLocation
+            pass
 
-        myAgent = "fundementalag"
-        myVersion = "4"
+        # Find vendor
+        vendor_id = None
+        pv = ProductVendor.query.filter_by(product_id=product.id).first()
+        if pv:
+            vendor_id = pv.vendor_id
 
-        agent_id_env = os.environ.get("AZURE_EXISTING_AGENT_ID")
-        if agent_id_env and ":" in agent_id_env:
-            agent_parts = agent_id_env.split(":")
-            myAgent = agent_parts[0]
-            myVersion = agent_parts[1]
+        system_prompt = f"""Procurement Agent Instructions
 
-        openai_client = project_client.get_openai_client()
+Role
+You are a helpful Procurement Assistant. You can chat with users to answer questions about inventory, or help them generate a Purchase Request (PR).
 
-        context_prompt = f"System Context: The user is currently looking at product SKU: {sku}. Please formulate your response to help with this product. The output must strictly follow the JSON schema provided to you."
+CRITICAL INSTRUCTION: STRICT JSON OUTPUT ONLY
+Your ENTIRE response MUST be a single, valid JSON object that strictly complies with the provided schema.
+- DO NOT output any conversational text, greetings, or explanations outside of the JSON object.
+- All natural language communication with the user MUST go inside the "message_to_user" field.
+- DO NOT wrap the JSON in markdown formatting (e.g., no ```json block) unless explicitly required by the parser.
+- If you output anything other than raw, valid JSON, the system will crash.
+
+Interaction Logic
+- Chat Mode: If the user is asking questions, greeting you, or providing incomplete info, set tool_action.execute to false. Use message_to_user to respond naturally.
+- Action Mode: If the user confirms they want to create an order AND you have all required fields, set tool_action.execute to true and populate the fields.
+
+Required Data for PR Tool
+Do not execute the tool until you have:
+- SKU ID: {sku}
+- Quantity: (Must be a positive integer)
+- UL ID: {ul_id}
+- Vendor ID: {vendor_id}
+
+Example Scenarios
+
+Example 1 (Chat Mode):
+User: "Hi there!"
+Output:
+{{
+  "thought_process": "The user is just greeting. I need to greet back and offer assistance.",
+  "message_to_user": "Hello! How can I help with your procurement needs today?",
+  "tool_action": {{
+    "execute": false,
+    "sku_id": null,
+    "quantity": null,
+    "ul_id": null,
+    "vendor_id": null
+  }}
+}}
+
+Example 2 (Action Mode):
+User: "I need 50 units of SKU-99 at location 5."
+Output:
+{{
+  "thought_process": "The user has provided all required details: SKU-99, quantity 50, and ul_id 5. I will trigger the execution.",
+  "message_to_user": "Got it! Generating the Purchase Request for 50 units of SKU-99 at location 5 right away.",
+  "tool_action": {{
+    "execute": true,
+    "sku_id": "SKU-99",
+    "quantity": 50,
+    "ul_id": 5,
+    "vendor_id": null
+  }}
+}}
+"""
 
         emit('copilot_progress', {'status': 'Thinking...'})
 
-        response = openai_client.responses.create(
-            input=[
-                {"role": "system", "content": context_prompt},
+        openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not openrouter_api_key:
+             emit('copilot_error', {'error': 'OPENROUTER_API_KEY not found in environment.'})
+             return
+
+        headers = {
+            "Authorization": f"Bearer {openrouter_api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "openai/gpt-5-nano",
+            "messages": [
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": message}
             ],
-            extra_body={"agent": {"name": myAgent, "version": myVersion, "type": "agent_reference"}},
-        )
+            "stream": True
+        }
 
-        output_text = response.output_text
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, stream=True)
+        response.raise_for_status()
+
+        output_text = ""
+        for line in response.iter_lines():
+            if line:
+                line_str = line.decode('utf-8')
+                if line_str.startswith('data: '):
+                    data_str = line_str[6:]
+                    if data_str == '[DONE]':
+                        break
+                    try:
+                        chunk = json.loads(data_str)
+                        if 'choices' in chunk and len(chunk['choices']) > 0:
+                            delta = chunk['choices'][0].get('delta', {})
+                            if 'content' in delta:
+                                content = delta['content']
+                                output_text += content
+                                emit('copilot_stream_chunk', {'chunk': content})
+                    except json.JSONDecodeError:
+                        pass
+
         print(f"Agent Response: {output_text}")
 
         try:

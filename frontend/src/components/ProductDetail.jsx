@@ -101,14 +101,42 @@ const ProductDetail = () => {
             setCopilotStatus(data.status);
         });
 
+        newSocket.on('copilot_stream_chunk', (data) => {
+            setIsCopilotTyping(false);
+            setCopilotStatus('');
+            setChatHistory(prev => {
+                const newHistory = [...prev];
+                // Check if the last message is from the agent and is streaming
+                const lastMsg = newHistory[newHistory.length - 1];
+                if (lastMsg && lastMsg.sender === 'agent' && lastMsg.isStreaming) {
+                    lastMsg.text += data.chunk;
+                } else {
+                    newHistory.push({ sender: 'agent', text: data.chunk, isStreaming: true });
+                }
+                return newHistory;
+            });
+        });
+
         newSocket.on('copilot_response', (data) => {
             setIsCopilotTyping(false);
             setCopilotStatus('');
 
-            // Add agent message
-            if (data.message_to_user) {
-                setChatHistory(prev => [...prev, { sender: 'agent', text: data.message_to_user }]);
-            }
+            setChatHistory(prev => {
+                const newHistory = [...prev];
+                const lastMsg = newHistory[newHistory.length - 1];
+                if (lastMsg && lastMsg.sender === 'agent' && lastMsg.isStreaming) {
+                    // Replace the raw JSON string with the parsed message
+                    return prev.map((msg, index) => {
+                        if (index === prev.length - 1) {
+                            return { sender: 'agent', text: data.message_to_user || "Action completed.", isStreaming: false };
+                        }
+                        return msg;
+                    });
+                } else if (data.message_to_user) {
+                    newHistory.push({ sender: 'agent', text: data.message_to_user });
+                }
+                return newHistory;
+            });
 
             // Handle tool action
             if (data.tool_action && data.tool_action.execute) {
