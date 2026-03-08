@@ -71,6 +71,87 @@ const ProductDetail = () => {
     fetchProductDetail();
   }, [sku]);
 
+  const [chatHistory, setChatHistory] = useState([]);
+  const [copilotStatus, setCopilotStatus] = useState('');
+  const [isCopilotTyping, setIsCopilotTyping] = useState(false);
+  const copilotSocket = React.useRef(null);
+  const chatEndRef = React.useRef(null);
+
+  const scrollToBottom = () => {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+      scrollToBottom();
+  }, [chatHistory, copilotStatus]);
+
+  // WebSocket for Copilot Chat
+  useEffect(() => {
+    import('socket.io-client').then(({ io }) => {
+        const newSocket = io({
+          path: '/socket.io',
+          transports: ['websocket', 'polling']
+        });
+
+        newSocket.on('connect', () => {
+            console.log('Connected to Copilot WebSocket');
+        });
+
+        newSocket.on('copilot_progress', (data) => {
+            setCopilotStatus(data.status);
+        });
+
+        newSocket.on('copilot_response', (data) => {
+            setIsCopilotTyping(false);
+            setCopilotStatus('');
+
+            // Add agent message
+            if (data.message_to_user) {
+                setChatHistory(prev => [...prev, { sender: 'agent', text: data.message_to_user }]);
+            }
+
+            // Handle tool action
+            if (data.tool_action && data.tool_action.execute) {
+                setPoQuantity(data.tool_action.quantity || 100);
+                setIsPOModalOpen(true);
+            }
+        });
+
+        newSocket.on('copilot_error', (data) => {
+            setIsCopilotTyping(false);
+            setCopilotStatus('');
+            setChatHistory(prev => [...prev, { sender: 'error', text: data.error || 'An error occurred during chat.' }]);
+        });
+
+        copilotSocket.current = newSocket;
+    });
+
+    return () => {
+      if (copilotSocket.current) {
+          copilotSocket.current.disconnect();
+          copilotSocket.current = null;
+      }
+    };
+  }, [sku]);
+
+  const handleSendMessage = () => {
+      if (!chatMessage.trim() || isCopilotTyping) return;
+
+      const msg = chatMessage;
+      setChatHistory(prev => [...prev, { sender: 'user', text: msg }]);
+      setChatMessage('');
+      setIsCopilotTyping(true);
+      setCopilotStatus('Sending...');
+
+      if (copilotSocket.current) {
+          copilotSocket.current.emit('copilot_chat', { message: msg, sku: sku });
+      } else {
+          setIsCopilotTyping(false);
+          setCopilotStatus('');
+          setChatHistory(prev => [...prev, { sender: 'error', text: 'Chat connection not established.' }]);
+      }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -152,9 +233,6 @@ ChinHin Forecasting Pro System`;
     }
   };
 
-  const chatHistory = [
-      { sender: 'ai', text: `I've analyzed the ${product.name}. Based on the ${velocity.trend_percentage}% sales acceleration this month, we are projecting a stockout in 14 days.` }
-  ];
 
   return (
     <Layout isFixed={true}>
@@ -395,18 +473,37 @@ ChinHin Forecasting Pro System`;
                     </div>
                 </div>
 
-                <div className="flex-1 bg-slate-50 rounded-lg p-4 mb-4 overflow-y-auto">
+                <div className="flex-1 bg-slate-50 rounded-lg p-4 mb-4 overflow-y-auto space-y-4">
                     <div className="text-center text-xs text-gray-400 mb-4">TODAY</div>
-                    {chatHistory.map((msg, idx) => (
-                        <div key={idx} className="flex mb-4">
-                            <div className="bg-indigo-600 h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 mr-2">
-                                <BrainCircuit className="h-4 w-4 text-white" />
+                    {chatHistory.length === 0 && (
+                        <div className="flex flex-col items-start">
+                            <div className="flex mb-4">
+                                <div className="bg-indigo-600 h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 mr-2">
+                                    <BrainCircuit className="h-4 w-4 text-white" />
+                                </div>
+                                <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 text-sm">
+                                    <p>I've analyzed the {productData.product.name}. Based on the {productData.trend_value}% sales acceleration this month, we are projecting a stockout in 14 days.</p>
+                                </div>
                             </div>
-                            <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 text-sm">
+                        </div>
+                    )}
+                    {chatHistory.map((msg, idx) => (
+                        <div key={idx} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+                            <div className={`inline-block p-3 rounded-lg text-sm shadow-sm border ${
+                                msg.sender === 'user' ? 'bg-indigo-600 text-white border-indigo-600' :
+                                msg.sender === 'error' ? 'bg-red-50 text-red-600 border-red-200' :
+                                'bg-white border-gray-100 text-gray-800'
+                            }`}>
                                 <p>{msg.text}</p>
                             </div>
                         </div>
                     ))}
+                    {isCopilotTyping && (
+                        <div className="text-xs text-gray-500 italic mt-2">
+                            {copilotStatus || 'Copilot is thinking...'}
+                        </div>
+                    )}
+                    <div ref={chatEndRef} />
                 </div>
 
                 <div className="relative">
@@ -415,9 +512,15 @@ ChinHin Forecasting Pro System`;
                         placeholder="Ask..."
                         value={chatMessage}
                         onChange={(e) => setChatMessage(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                        disabled={isCopilotTyping}
                     />
                     <div className="absolute right-1 top-1">
-                         <button className="bg-indigo-600 p-1.5 rounded-md text-white hover:bg-indigo-700 transition-colors">
+                         <button
+                             onClick={handleSendMessage}
+                             disabled={isCopilotTyping || !chatMessage.trim()}
+                             className="bg-indigo-600 p-1.5 rounded-md text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                         >
                              <Send className="h-4 w-4" />
                          </button>
                     </div>
