@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from './Layout';
+import { toast } from 'react-toastify';
 import {
   Card,
   Text,
@@ -49,8 +50,25 @@ const ProductDetail = () => {
   const [isPOModalOpen, setIsPOModalOpen] = useState(false);
   const [poQuantity, setPoQuantity] = useState(100);
   const [poVendorId, setPoVendorId] = useState('');
+  const [poLocationId, setPoLocationId] = useState('');
+  const [locationsList, setLocationsList] = useState([]);
   const [emailPreview, setEmailPreview] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  useEffect(() => {
+      const fetchLocations = async () => {
+          try {
+              const res = await axios.get('/api/locations');
+              setLocationsList(res.data);
+              if (res.data && res.data.length > 0) {
+                  setPoLocationId(res.data[0].id);
+              }
+          } catch (error) {
+              console.error("Error fetching locations", error);
+          }
+      };
+      fetchLocations();
+  }, []);
 
   useEffect(() => {
     const fetchProductDetail = async () => {
@@ -239,14 +257,15 @@ ChinHin Forecasting Pro System`;
           await axios.post('/api/generate-pr', {
               sku_id: product.sku,
               quantity: poQuantity,
-              vendor_id: poVendorId
+              vendor_id: poVendorId,
+              location_id: poLocationId
           });
-          alert("PR Created Successfully!");
+          toast.success("PR Created Successfully!");
           setIsPOModalOpen(false);
           // Refresh data to show new order?
           // For now just close.
       } catch (e) {
-          alert("Error creating PR: " + (e.response?.data?.message || e.message));
+          if (e.response && e.response.status === 403) { toast.error("PR Failed: Only Warehouse role is allowed to create Purchase Requests."); } else { toast.error("Error creating PR: " + (e.response?.data?.message || e.message)); }
       } finally {
           setIsSending(false);
       }
@@ -599,6 +618,19 @@ ChinHin Forecasting Pro System`;
                   </div>
 
                   <div className="space-y-4">
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Destination Location</label>
+                          <select
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                            value={poLocationId}
+                            onChange={(e) => setPoLocationId(e.target.value)}
+                          >
+                              {locationsList?.map(l => (
+                                  <option key={l.id} value={l.id}>{l.loc_code} - {l.description}</option>
+                              ))}
+                          </select>
+                      </div>
+
                       <div>
                           <label className="block text-sm font-medium text-gray-700">Vendor</label>
                           <select

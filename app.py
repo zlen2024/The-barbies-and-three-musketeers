@@ -301,14 +301,16 @@ def api_generate_pr():
         if not pv:
             return jsonify({'success': False, 'message': 'No vendor found for this product'}), 400
 
-        ul_id = data.get('ul_id')
-        if not ul_id:
-            return jsonify({'success': False, 'message': 'ul_id is required to create a Product Order'}), 400
+        location_id = data.get('location_id')
+        if not location_id:
+            return jsonify({'success': False, 'message': 'Location ID is required to create a Product Order'}), 400
 
-        # Verify ul_id exists and belongs to current user
-        user_loc = UserLocation.query.filter_by(ul_id=ul_id, uid=current_user.id).first()
+        # Verify location_id exists and belongs to current user
+        user_loc = UserLocation.query.filter_by(location_id=location_id, uid=current_user.id).first()
         if not user_loc:
-            return jsonify({'success': False, 'message': 'Invalid User Location (ul_id) or unauthorized access'}), 403
+            return jsonify({'success': False, 'message': 'Invalid Location or unauthorized access'}), 403
+
+        ul_id = user_loc.ul_id
 
         pr = ProductOrder(
             pv_id=pv.id,
@@ -986,9 +988,16 @@ def api_order_detail(order_id):
     is_received = order.status == 'Received'
     timeline.append({'stage': 'Received', 'date': order.ets_date.strftime("%Y-%m-%d") if order.ets_date else '', 'completed': is_received})
 
+    location_id = None
+    if order.ul_id:
+        user_loc = UserLocation.query.get(order.ul_id)
+        if user_loc:
+            location_id = user_loc.location_id
+
     data = {
         'id': order.id,
         'po_reference': order.po_reference or f"PO-{order.id}",
+        'location_id': location_id,
         'product': {
             'name': prod.product_name,
             'sku': prod.model_code,
@@ -1918,7 +1927,7 @@ def api_create_user():
         return jsonify({'error': 'User already exists'}), 400
 
     hashed_password = generate_password_hash(password)
-    new_user = User(username=username, email=email, password=hashed_password, role=role)
+    new_user = User(username=username, email=email, password_hash=hashed_password, role=role)
 
     try:
         db.session.add(new_user)
@@ -2082,7 +2091,7 @@ def api_warehouse_summary():
         return jsonify({'success': False, 'message': 'Location ID is required'}), 400
 
     ul = UserLocation.query.filter_by(uid=user_id, location_id=location_id).first()
-    if not ul and current_user.role != 'Admin':
+    if not ul and current_user.role not in ['Admin', 'Manager']:
         return jsonify({'success': False, 'message': 'Unauthorized access to location'}), 403
 
     location = Location.query.get(location_id)
@@ -2160,7 +2169,7 @@ def api_warehouse_product_stats():
         return jsonify({'success': False, 'message': 'Location ID and Product ID are required'}), 400
 
     ul = UserLocation.query.filter_by(uid=user_id, location_id=location_id).first()
-    if not ul and current_user.role != 'Admin':
+    if not ul and current_user.role not in ['Admin', 'Manager']:
         return jsonify({'success': False, 'message': 'Unauthorized access to location'}), 403
 
     location_ul_ids = [ul_item.ul_id for ul_item in UserLocation.query.filter_by(location_id=location_id).all()]

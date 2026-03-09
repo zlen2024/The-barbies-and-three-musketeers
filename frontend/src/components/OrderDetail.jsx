@@ -136,6 +136,9 @@ const OrderDetail = () => {
                               {order.confirmation_status === 'Pending' && (
                                   <Badge color="yellow" icon={AlertCircle}>Draft / Pending Approval</Badge>
                               )}
+                              {order.location_id && (
+                                  <Badge color="gray">Location ID: {order.location_id}</Badge>
+                              )}
                           </div>
                       </div>
                       <div className="mt-4 sm:mt-0">
