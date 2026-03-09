@@ -50,8 +50,25 @@ const ProductDetail = () => {
   const [isPOModalOpen, setIsPOModalOpen] = useState(false);
   const [poQuantity, setPoQuantity] = useState(100);
   const [poVendorId, setPoVendorId] = useState('');
+  const [poLocationId, setPoLocationId] = useState('');
+  const [locationsList, setLocationsList] = useState([]);
   const [emailPreview, setEmailPreview] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  useEffect(() => {
+      const fetchLocations = async () => {
+          try {
+              const res = await axios.get('/api/locations');
+              setLocationsList(res.data);
+              if (res.data && res.data.length > 0) {
+                  setPoLocationId(res.data[0].id);
+              }
+          } catch (error) {
+              console.error("Error fetching locations", error);
+          }
+      };
+      fetchLocations();
+  }, []);
 
   useEffect(() => {
     const fetchProductDetail = async () => {
@@ -240,7 +257,8 @@ ChinHin Forecasting Pro System`;
           await axios.post('/api/generate-pr', {
               sku_id: product.sku,
               quantity: poQuantity,
-              vendor_id: poVendorId
+              vendor_id: poVendorId,
+              location_id: poLocationId
           });
           toast.success("PR Created Successfully!");
           setIsPOModalOpen(false);
@@ -600,6 +618,19 @@ ChinHin Forecasting Pro System`;
                   </div>
 
                   <div className="space-y-4">
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Destination Location</label>
+                          <select
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                            value={poLocationId}
+                            onChange={(e) => setPoLocationId(e.target.value)}
+                          >
+                              {locationsList?.map(l => (
+                                  <option key={l.id} value={l.id}>{l.loc_code} - {l.description}</option>
+                              ))}
+                          </select>
+                      </div>
+
                       <div>
                           <label className="block text-sm font-medium text-gray-700">Vendor</label>
                           <select

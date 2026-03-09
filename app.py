@@ -301,14 +301,16 @@ def api_generate_pr():
         if not pv:
             return jsonify({'success': False, 'message': 'No vendor found for this product'}), 400
 
-        ul_id = data.get('ul_id')
-        if not ul_id:
-            return jsonify({'success': False, 'message': 'ul_id is required to create a Product Order'}), 400
+        location_id = data.get('location_id')
+        if not location_id:
+            return jsonify({'success': False, 'message': 'Location ID is required to create a Product Order'}), 400
 
-        # Verify ul_id exists and belongs to current user
-        user_loc = UserLocation.query.filter_by(ul_id=ul_id, uid=current_user.id).first()
+        # Verify location_id exists and belongs to current user
+        user_loc = UserLocation.query.filter_by(location_id=location_id, uid=current_user.id).first()
         if not user_loc:
-            return jsonify({'success': False, 'message': 'Invalid User Location (ul_id) or unauthorized access'}), 403
+            return jsonify({'success': False, 'message': 'Invalid Location or unauthorized access'}), 403
+
+        ul_id = user_loc.ul_id
 
         pr = ProductOrder(
             pv_id=pv.id,
