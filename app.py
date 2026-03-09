@@ -988,9 +988,16 @@ def api_order_detail(order_id):
     is_received = order.status == 'Received'
     timeline.append({'stage': 'Received', 'date': order.ets_date.strftime("%Y-%m-%d") if order.ets_date else '', 'completed': is_received})
 
+    location_id = None
+    if order.ul_id:
+        user_loc = UserLocation.query.get(order.ul_id)
+        if user_loc:
+            location_id = user_loc.location_id
+
     data = {
         'id': order.id,
         'po_reference': order.po_reference or f"PO-{order.id}",
+        'location_id': location_id,
         'product': {
             'name': prod.product_name,
             'sku': prod.model_code,
