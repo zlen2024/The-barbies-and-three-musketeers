@@ -54,26 +54,7 @@ const Login = () => {
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-100">
 
           {/* Role Toggle for Visual Context */}
-          <div className="mb-6 flex bg-gray-100 p-1 rounded-lg">
-            <button
-                type="button"
-                onClick={() => setRole('Procurement')}
-                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                    role === 'Procurement' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-                Procurement
-            </button>
-            <button
-                type="button"
-                onClick={() => setRole('Sales')}
-                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                    role === 'Sales' ? 'bg-white shadow text-green-600' : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-                Sales
-            </button>
-          </div>
+          
 
           <form className="space-y-6" onSubmit={handleLogin}>
             <div>
@@ -153,8 +134,10 @@ const Login = () => {
                 </div>
 
                 <div className="mt-6 grid grid-cols-1 gap-3 text-xs text-gray-500 text-center">
-                   <p>Procurement: admin / password</p>
-                   <p>Sales: sales / password</p>
+                   <p>Admin: testadmin / password</p>
+                   <p>Sale: testsales / password</p>
+                  <p>Warehouse : testwarehouse / password</p>
+                  <p>Manager: testmanager / password</p>
                 </div>
             </div>
 
