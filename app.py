@@ -2084,7 +2084,7 @@ def api_warehouse_summary():
         return jsonify({'success': False, 'message': 'Location ID is required'}), 400
 
     ul = UserLocation.query.filter_by(uid=user_id, location_id=location_id).first()
-    if not ul and current_user.role != 'Admin':
+    if not ul and current_user.role not in ['Admin', 'Manager']:
         return jsonify({'success': False, 'message': 'Unauthorized access to location'}), 403
 
     location = Location.query.get(location_id)
@@ -2162,7 +2162,7 @@ def api_warehouse_product_stats():
         return jsonify({'success': False, 'message': 'Location ID and Product ID are required'}), 400
 
     ul = UserLocation.query.filter_by(uid=user_id, location_id=location_id).first()
-    if not ul and current_user.role != 'Admin':
+    if not ul and current_user.role not in ['Admin', 'Manager']:
         return jsonify({'success': False, 'message': 'Unauthorized access to location'}), 403
 
     location_ul_ids = [ul_item.ul_id for ul_item in UserLocation.query.filter_by(location_id=location_id).all()]
