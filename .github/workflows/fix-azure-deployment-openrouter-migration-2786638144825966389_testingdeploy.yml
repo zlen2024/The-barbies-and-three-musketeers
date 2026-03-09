@@ -2,12 +2,12 @@
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 # More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
 
-name: Build and deploy Python app to Azure Web App - chinhinforcastingpro
+name: Build and deploy Python app to Azure Web App - testingdeploy
 
 on:
   push:
     branches:
-      - feature/openrouter-chat-2653513933933601147
+      - fix-azure-deployment-openrouter-migration-2786638144825966389
   workflow_dispatch:
 
 jobs:
@@ -75,6 +75,6 @@ jobs:
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
-          app-name: 'chinhinforcastingpro'
+          app-name: 'testingdeploy'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_E906039A264E4D4DBC5378DFBD9B32BA }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_50E7A50F5BB043DE84C68B31BB6E9378 }}

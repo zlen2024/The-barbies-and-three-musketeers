@@ -17,9 +17,7 @@ from models import db, User, Product, Location, ProductLoc, Vendor, ProductVendo
 import json
 from dotenv import load_dotenv
 
-from azure.identity import DefaultAzureCredential
-from azure.ai.projects import AIProjectClient
-
+from openai import OpenAI
 load_dotenv()
 
 
@@ -90,23 +88,32 @@ def add_security_headers(response):
     return response
 
 from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import NotFound
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    if isinstance(e, HTTPException) and e.code == 404:
-        if not request.path.startswith('/api/'):
-            return send_from_directory(app.static_folder, 'index.html')
+    # If the exception is an HTTPException
+    if isinstance(e, HTTPException):
+        # Explicitly handle 404s for the frontend routing
+        if e.code == 404:
+            if not request.path.startswith('/api/'):
+                try:
+                    return send_from_directory(app.static_folder, 'index.html')
+                except NotFound:
+                    return jsonify({'success': False, 'message': 'Frontend not built or index.html not found'}), 404
 
-    # Log the full stack trace
+        # For API requests returning HTTPExceptions (e.g. 401, 403, etc)
+        if request.path.startswith('/api/'):
+            return jsonify({'success': False, 'message': e.description, 'error': str(e)}), e.code
+
+        return e
+
+    # Log the full stack trace for non-HTTP exceptions
     logger.error(f"Unhandled Exception: {str(e)}\n{traceback.format_exc()}")
 
     # Return JSON for API routes
     if request.path.startswith('/api/'):
-        status_code = e.code if isinstance(e, HTTPException) else 500
-        return jsonify({'success': False, 'message': 'An error occurred', 'error': str(e)}), status_code
-
-    if isinstance(e, HTTPException):
-        return e
+        return jsonify({'success': False, 'message': 'An error occurred', 'error': str(e)}), 500
 
     # Otherwise render a generic error or just return string
     return "Internal Server Error", 500
@@ -2373,41 +2380,26 @@ Output:
              emit('copilot_error', {'error': 'OPENROUTER_API_KEY not found in environment.'})
              return
 
-        headers = {
-            "Authorization": f"Bearer {openrouter_api_key}",
-            "Content-Type": "application/json"
-        }
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=openrouter_api_key,
+        )
 
-        payload = {
-            "model": "openai/gpt-5-nano",
-            "messages": [
+        response = client.chat.completions.create(
+            model="openai/gpt-5-nano",
+            messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": message}
             ],
-            "stream": True
-        }
-
-        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, stream=True)
-        response.raise_for_status()
+            stream=True
+        )
 
         output_text = ""
-        for line in response.iter_lines():
-            if line:
-                line_str = line.decode('utf-8')
-                if line_str.startswith('data: '):
-                    data_str = line_str[6:]
-                    if data_str == '[DONE]':
-                        break
-                    try:
-                        chunk = json.loads(data_str)
-                        if 'choices' in chunk and len(chunk['choices']) > 0:
-                            delta = chunk['choices'][0].get('delta', {})
-                            if 'content' in delta:
-                                content = delta['content']
-                                output_text += content
-                                emit('copilot_stream_chunk', {'chunk': content})
-                    except json.JSONDecodeError:
-                        pass
+        for chunk in response:
+            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                content = chunk.choices[0].delta.content
+                output_text += content
+                emit('copilot_stream_chunk', {'chunk': content})
 
         print(f"Agent Response: {output_text}")
 
