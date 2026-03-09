@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from './Layout';
+import { toast } from 'react-toastify';
 import {
   Card,
   Text,
@@ -241,12 +242,12 @@ ChinHin Forecasting Pro System`;
               quantity: poQuantity,
               vendor_id: poVendorId
           });
-          alert("PR Created Successfully!");
+          toast.success("PR Created Successfully!");
           setIsPOModalOpen(false);
           // Refresh data to show new order?
           // For now just close.
       } catch (e) {
-          alert("Error creating PR: " + (e.response?.data?.message || e.message));
+          if (e.response && e.response.status === 403) { toast.error("PR Failed: Only Warehouse role is allowed to create Purchase Requests."); } else { toast.error("Error creating PR: " + (e.response?.data?.message || e.message)); }
       } finally {
           setIsSending(false);
       }
