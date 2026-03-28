@@ -14,8 +14,15 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install system dependencies (none obvious, but good to have minimal base)
-# We can add `RUN apt-get update && apt-get install -y ...` if needed.
+# Install system dependencies for pyodbc and Azure SQL
+# Need gnupg instead of gnupg2 for newer debian 11/12
+RUN apt-get update && apt-get install -y curl gnupg apt-transport-https unixodbc-dev && \
+    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg && \
+    curl -fsSL https://packages.microsoft.com/config/debian/12/prod.list | tee /etc/apt/sources.list.d/mssql-release.list && \
+    apt-get update && \
+    ACCEPT_EULA=Y apt-get install -y msodbcsql18 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY requirements.txt .
