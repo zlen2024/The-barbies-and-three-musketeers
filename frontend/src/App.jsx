@@ -4,17 +4,25 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import InventoryList from './components/InventoryList';
 import ProductDetail from './components/ProductDetail';
+import ProductForecast from './components/ProductForecast';
+import Suppliers from './components/Suppliers';
 import Orders from './components/Orders';
-import Profile from './components/Profile';
+import OrderDetail from './components/OrderDetail';
+import Workspace from './components/Workspace';
+import Warehouse from './components/Warehouse';
+import SalesHub from './components/SalesHub';
+import MarginSimulator from './components/MarginSimulator';
+import { ToastContainer } from 'react-toastify';
 import './index.css';
 
 // Simple Protected Route Component
-const ProtectedRoute = ({ children }) => {
-  // In a real app, check for token/session validity
-  // Here we just check if userRole exists in localStorage for demo
+const ProtectedRoute = ({ children, allowedRoles }) => {
   const userRole = localStorage.getItem('userRole');
   if (!userRole) {
     return <Navigate to="/" replace />;
+  }
+  if (allowedRoles && !allowedRoles.includes(userRole)) {
+    return <Navigate to="/dashboard" replace />;
   }
   return children;
 };
@@ -29,6 +37,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/margin-simulator"
+          element={
+            <ProtectedRoute>
+              <MarginSimulator />
             </ProtectedRoute>
           }
         />
@@ -49,6 +65,30 @@ function App() {
           }
         />
         <Route
+          path="/inventory/warehouse"
+          element={
+            <ProtectedRoute>
+              <Warehouse />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/forecast"
+          element={
+            <ProtectedRoute>
+              <ProductForecast />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/suppliers"
+          element={
+            <ProtectedRoute allowedRoles={['Admin', 'Manager', 'Warehouse', 'Procurement']}>
+              <Suppliers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/orders"
           element={
             <ProtectedRoute>
@@ -57,16 +97,33 @@ function App() {
           }
         />
         <Route
-          path="/profile"
+          path="/orders/:orderId"
           element={
             <ProtectedRoute>
-              <Profile />
+              <OrderDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspace"
+          element={
+            <ProtectedRoute>
+              <Workspace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales-hub"
+          element={
+            <ProtectedRoute>
+              <SalesHub />
             </ProtectedRoute>
           }
         />
         {/* Redirect unknown routes to Login */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ToastContainer position="bottom-right" />
     </Router>
   );
 }

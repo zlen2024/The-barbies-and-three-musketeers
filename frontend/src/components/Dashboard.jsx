@@ -4,9 +4,12 @@ import { Card, Title, Text, LineChart, Metric, Flex, Badge, Button, Callout } fr
 import { ArrowRight, TrendingUp, AlertCircle, ShoppingCart, DollarSign, BrainCircuit } from 'lucide-react';
 import axios from 'axios';
 
-const valueFormatter = (number) => `$ ${new Intl.NumberFormat("us").format(number).toString()}`;
+const valueFormatter = (number) => `$ ${new Intl.NumberFormat("en-US").format(number).toString()}`;
+const numberFormatter = (number) => `${new Intl.NumberFormat("en-US").format(number).toString()}`;
 
 const Dashboard = () => {
+  const role = localStorage.getItem('userRole') || 'Staff';
+
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [margin, setMargin] = useState(20); // Default 20% margin
@@ -25,25 +28,11 @@ const Dashboard = () => {
 
   useEffect(() => {
     // Fetch data from API
-    // For now, we simulate API call
     const fetchData = async () => {
         try {
-            // Uncomment when API is ready
-            // const response = await axios.get('/api/dashboard');
-            // setData(response.data);
-
-            // Mock response
-            setTimeout(() => {
-                setData({
-                    totalSales: 32800,
-                    predictedDemand: 34500,
-                    accuracy: "94.2%",
-                    chartData: mockChartData,
-                    smartWhy: "Demand is expected to rise by 12% in Q3 due to seasonal trends and competitor stock-outs in the region. Recommendation: Increase inventory for SKU-123 by 15%."
-                });
-                setLoading(false);
-            }, 1000);
-
+            const response = await axios.get('/api/dashboard');
+            setData(response.data);
+            setLoading(false);
         } catch (error) {
             console.error("Error fetching dashboard data", error);
             setLoading(false);
@@ -62,11 +51,16 @@ const Dashboard = () => {
 
   const handleGeneratePR = async () => {
       try {
+          // Ask user for a user location id for now
+          const ulId = prompt("Enter your User Location ID (ul_id):", "1");
+          if (!ulId) return;
+
           alert("Generating Purchase Request...");
-          await axios.post('/api/generate-pr', { sku_id: 'SKU-123', quantity: 100 });
+          await axios.post('/api/generate-pr', { sku_id: 'HT-PLATZ-450-H', quantity: 100, ul_id: parseInt(ulId, 10) });
           alert("Purchase Request Generated Successfully! PDF sent to email.");
       } catch (e) {
-          alert("Error generating PR");
+          console.error(e);
+          alert("Error generating PR: " + (e.response?.data?.message || e.message));
       }
   };
 
@@ -109,7 +103,7 @@ const Dashboard = () => {
                     </div>
                     <div>
                         <Text>Predicted Demand (Q3)</Text>
-                        <Metric>{valueFormatter(data?.predictedDemand)}</Metric>
+                        <Metric>{numberFormatter(data?.predictedDemand)}</Metric>
                     </div>
                 </Flex>
             </Card>
@@ -141,8 +135,8 @@ const Dashboard = () => {
             />
         </Card>
 
-        {/* Intelligence & Simulation Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Intelligence Grid */}
+        <div className="grid grid-cols-1 gap-6">
 
             {/* Smart Why Rationale */}
             <Card>
@@ -162,63 +156,27 @@ const Dashboard = () => {
                     The reasoning model analyzes market trends, seasonality, and competitor data to provide this explanation.
                 </Text>
             </Card>
-
-            {/* Margin Simulator */}
-            <Card>
-                <Title className="mb-4">Margin Simulator</Title>
-                <Text>Test how price changes impact simulated profit per unit.</Text>
-
-                <div className="mt-6 space-y-4">
-                    <Flex>
-                        <Text>Target Margin</Text>
-                        <Text>{margin}%</Text>
-                    </Flex>
-                    <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={margin}
-                        onChange={(e) => setMargin(Number(e.target.value))}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    />
-
-                    <div className="bg-gray-50 p-4 rounded-md border border-gray-100 mt-4">
-                        <Flex className="mb-2">
-                            <Text>Base Cost</Text>
-                            <Text>{valueFormatter(basePrice)}</Text>
-                        </Flex>
-                        <Flex className="mb-2">
-                            <Text>Simulated Price</Text>
-                            <Text className="font-bold text-gray-900">{valueFormatter(basePrice * (1 + margin/100))}</Text>
-                        </Flex>
-                         <div className="border-t border-gray-200 my-2 pt-2">
-                            <Flex>
-                                <Text>Projected Profit / Unit</Text>
-                                <Metric className="text-emerald-600">{valueFormatter(basePrice * (margin/100))}</Metric>
-                            </Flex>
-                         </div>
-                    </div>
-                </div>
-            </Card>
         </div>
 
-        {/* Action Bar */}
-        <Card decoration="left" decorationColor="blue">
-            <Flex>
-                <div>
-                    <Title>Automated Purchase Request</Title>
-                    <Text>Generate a PR based on the current AI recommendation.</Text>
-                </div>
-                <Button
-                    icon={ShoppingCart}
-                    size="lg"
-                    onClick={handleGeneratePR}
-                    color="blue"
-                >
-                    Generate PR
-                </Button>
-            </Flex>
-        </Card>
+        {/* Action Bar - Restricted to Warehouse */}
+        {role === 'Warehouse' && (
+            <Card decoration="left" decorationColor="blue">
+                <Flex>
+                    <div>
+                        <Title>Automated Purchase Request</Title>
+                        <Text>Generate a PR based on the current AI recommendation.</Text>
+                    </div>
+                    <Button
+                        icon={ShoppingCart}
+                        size="lg"
+                        onClick={handleGeneratePR}
+                        color="blue"
+                    >
+                        Generate PR
+                    </Button>
+                </Flex>
+            </Card>
+        )}
 
       </div>
     </Layout>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect, Fragment } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import {
   Card,
@@ -29,17 +29,28 @@ import {
   BrainCircuit,
   MessageCircle,
   Send,
-  Package
+  Package,
+  X,
+  Mail
 } from 'lucide-react';
 import axios from 'axios';
+import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 
-const valueFormatter = (number) => `${new Intl.NumberFormat("us").format(number).toString()}`;
+const valueFormatter = (number) => `${new Intl.NumberFormat("en-US").format(number).toString()}`;
 
 const ProductDetail = () => {
   const { sku } = useParams();
+  const navigate = useNavigate();
   const [productData, setProductData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chatMessage, setChatMessage] = useState('');
+
+  // PO Modal State
+  const [isPOModalOpen, setIsPOModalOpen] = useState(false);
+  const [poQuantity, setPoQuantity] = useState(100);
+  const [poVendorId, setPoVendorId] = useState('');
+  const [emailPreview, setEmailPreview] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     const fetchProductDetail = async () => {
@@ -47,6 +58,10 @@ const ProductDetail = () => {
         const response = await axios.get(`/api/inventory/products/${sku}`);
         setProductData(response.data);
         setLoading(false);
+        // Set default vendor if available
+        if (response.data.vendors && response.data.vendors.length > 0) {
+            setPoVendorId(response.data.vendors[0].id);
+        }
       } catch (error) {
         console.error("Error fetching product detail", error);
         setLoading(false);
@@ -72,7 +87,61 @@ const ProductDetail = () => {
       );
   }
 
-  const { product, stock_health, velocity, incoming, analytics, orders } = productData;
+  const { product, stock_health, velocity, incoming, analytics, orders, locations, vendors, pricing } = productData;
+
+  // Combine locations and analytics.distribution
+  const stockAndSalesData = locations?.map(loc => {
+    const saleData = analytics.distribution.find(d => d.name === loc.location);
+    return [
+      { name: `${loc.location} - Stock`, value: loc.quantity, color: "blue" },
+      { name: `${loc.location} - Sales`, value: saleData ? saleData.value : 0, color: "emerald" }
+    ];
+  }).flat() || [];
+
+  const handleOpenPOModal = () => {
+      setIsPOModalOpen(true);
+      setEmailPreview('');
+  };
+
+  const handleGenerateEmail = () => {
+      const vendor = vendors.find(v => v.id == poVendorId);
+      const vendorName = vendor ? vendor.name : "Vendor";
+      const emailText = `Subject: Purchase Order Request - ${product.name}
+
+Dear ${vendorName} Sales Team,
+
+Please accept this purchase order for the following items:
+
+Item: ${product.name} (SKU: ${product.sku})
+Quantity: ${poQuantity} units
+Required Delivery: ASAP
+
+Please confirm receipt and provide an estimated delivery date.
+
+Best regards,
+Procurement Manager
+InventoryAI System`;
+      setEmailPreview(emailText);
+  };
+
+  const handleSubmitPO = async () => {
+      setIsSending(true);
+      try {
+          await axios.post('/api/generate-pr', {
+              sku_id: product.sku,
+              quantity: poQuantity,
+              vendor_id: poVendorId
+          });
+          alert("PR Created Successfully!");
+          setIsPOModalOpen(false);
+          // Refresh data to show new order?
+          // For now just close.
+      } catch (e) {
+          alert("Error creating PR: " + (e.response?.data?.message || e.message));
+      } finally {
+          setIsSending(false);
+      }
+  };
 
   const getStatusColor = (status) => {
     switch(status) {
@@ -88,11 +157,11 @@ const ProductDetail = () => {
   ];
 
   return (
-    <Layout>
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <Layout isFixed={true}>
+      <div className="h-full overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-4 gap-6">
 
         {/* Left Column (75% width on large screens) */}
-        <div className="col-span-1 lg:col-span-3 space-y-6">
+        <div className="col-span-1 lg:col-span-3 space-y-6 lg:h-full lg:overflow-y-auto lg:pr-2">
 
             {/* Top Row: Product Summary */}
             <Card decoration="top" decorationColor={getStatusColor(product.status)}>
@@ -107,7 +176,7 @@ const ProductDetail = () => {
                         </div>
                     </div>
                     <div className="mt-4 sm:mt-0">
-                        <Button icon={ShoppingCart} size="lg" color="blue">
+                        <Button icon={ShoppingCart} size="lg" color="blue" onClick={handleOpenPOModal}>
                             Create PO
                         </Button>
                     </div>
@@ -178,11 +247,68 @@ const ProductDetail = () => {
                 </Card>
             </div>
 
+            {/* New Section: Product Info & Logistics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 {/* Pricing & Vendors */}
+                 <Card>
+                    <Title>Pricing & Vendors</Title>
+                    <div className="mt-4">
+                        <Text className="font-bold">Regional Pricing</Text>
+                        <div className="grid grid-cols-3 gap-2 mt-2">
+                             <div className="bg-gray-50 p-2 rounded text-center">
+                                 <Text className="text-xs">LSP</Text>
+                                 <Metric className="text-lg">${pricing?.lsp}</Metric>
+                             </div>
+                             <div className="bg-gray-50 p-2 rounded text-center">
+                                 <Text className="text-xs">West Msia</Text>
+                                 <Metric className="text-lg">${pricing?.wm}</Metric>
+                             </div>
+                             <div className="bg-gray-50 p-2 rounded text-center">
+                                 <Text className="text-xs">East Msia</Text>
+                                 <Metric className="text-lg">${pricing?.em}</Metric>
+                             </div>
+                        </div>
+                    </div>
+                    <div className="mt-6">
+                        <Text className="font-bold">Vendors</Text>
+                         <Table className="mt-2">
+                            <TableHead>
+                                <TableRow>
+                                    <TableHeaderCell>Name</TableHeaderCell>
+                                    <TableHeaderCell>Cost</TableHeaderCell>
+                                    <TableHeaderCell>Lead Time</TableHeaderCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {vendors?.map((v, i) => (
+                                    <TableRow key={i}>
+                                        <TableCell>{v.name}</TableCell>
+                                        <TableCell>${v.cost}</TableCell>
+                                        <TableCell>{v.lead_time} days</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                 </Card>
+
+                 {/* Stock & Sales Distribution */}
+                 <Card>
+                     <Title>Stock & Sales Distribution</Title>
+                     <Text>Stock and sales channel breakdown.</Text>
+                     <BarList
+                         data={stockAndSalesData}
+                         className="mt-4"
+                         valueFormatter={valueFormatter}
+                     />
+                 </Card>
+            </div>
+
             {/* Bottom Row: Analytics */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
                 {/* Coverage Gauge */}
-                <Card className="flex flex-col items-center justify-center">
+                <Card className="flex flex-col items-center justify-center col-span-1">
                     <Title className="w-full text-left">Coverage</Title>
                     <div className="relative mt-4">
                         <DonutChart
@@ -204,20 +330,12 @@ const ProductDetail = () => {
                     </div>
                 </Card>
 
-                {/* Distribution */}
-                <Card>
-                    <Title>Distribution</Title>
-                    <Text>Sales Channel Breakdown</Text>
-                    <BarList
-                        data={analytics.distribution}
-                        className="mt-4"
-                        color="blue"
-                    />
-                </Card>
-
                 {/* Sales Trend */}
-                <Card>
-                    <Title>Sales Trend</Title>
+                <Card className="col-span-1 md:col-span-2 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/forecast/${product.sku}`)}>
+                    <div className="flex justify-between items-center">
+                        <Title>Sales Trend</Title>
+                        <Text className="text-xs text-indigo-600 flex items-center">Click for Analysis <ArrowRight className="h-3 w-3 ml-1"/></Text>
+                    </div>
                     <LineChart
                         className="mt-4 h-40"
                         data={analytics.sales_trend}
@@ -265,8 +383,8 @@ const ProductDetail = () => {
         </div>
 
         {/* Right Column (25% width on large screens) - Copilot */}
-        <div className="col-span-1 lg:col-span-1">
-            <Card className="h-full flex flex-col min-h-[600px]">
+        <div className="col-span-1 lg:col-span-1 lg:h-full flex flex-col">
+            <Card className="h-full flex flex-col lg:min-h-0 min-h-[500px]">
                 <div className="flex items-center mb-4">
                     <div className="p-2 bg-indigo-100 rounded-lg mr-3">
                          <BrainCircuit className="h-6 w-6 text-indigo-600" />
@@ -312,6 +430,112 @@ const ProductDetail = () => {
         </div>
 
       </div>
+
+      {/* CREATE PO MODAL */}
+      <Transition show={isPOModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setIsPOModalOpen(false)}>
+          <TransitionChild
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/30" />
+          </TransitionChild>
+
+          <div className="fixed inset-0 w-screen overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <TransitionChild
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <DialogPanel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                  <div className="flex justify-between items-center mb-4">
+                    <DialogTitle as="h3" className="text-lg font-medium leading-6 text-gray-900">
+                      Create Purchase Order
+                    </DialogTitle>
+                    <button onClick={() => setIsPOModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Vendor</label>
+                          <select
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                            value={poVendorId}
+                            onChange={(e) => setPoVendorId(e.target.value)}
+                          >
+                              {vendors?.map(v => (
+                                  <option key={v.id} value={v.id}>{v.name} (Lead Time: {v.lead_time} days)</option>
+                              ))}
+                          </select>
+                      </div>
+
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Quantity</label>
+                          <input
+                            type="number"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                            value={poQuantity}
+                            onChange={(e) => setPoQuantity(e.target.value)}
+                          />
+                      </div>
+
+                      {emailPreview && (
+                          <div className="mt-4">
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Email Preview</label>
+                              <div className="bg-gray-50 p-3 rounded-md border text-sm font-mono whitespace-pre-wrap text-gray-600">
+                                  {emailPreview}
+                              </div>
+                          </div>
+                      )}
+
+                      <div className="mt-6 flex justify-between">
+                          <Button
+                            variant="secondary"
+                            icon={Mail}
+                            onClick={handleGenerateEmail}
+                          >
+                              Generate Email
+                          </Button>
+
+                          <div className="flex space-x-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsPOModalOpen(false)}
+                                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSubmitPO}
+                                disabled={isSending}
+                                className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none"
+                            >
+                                {isSending ? 'Sending...' : 'Send Request'}
+                            </button>
+                          </div>
+                      </div>
+                  </div>
+
+                </DialogPanel>
+              </TransitionChild>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+
     </Layout>
   );
 };
